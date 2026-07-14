@@ -20,11 +20,16 @@ def test_curriculum_quiz_and_assessment_flow() -> None:
 
     plan = CurriculumAgent().generate(analysis, profile)
     quiz = QuizAgent().generate(analysis, plan["lessons"][0])
-    answers = {question["id"]: "main.py FastAPI router Service Repository Database" for question in quiz["questions"]}
+    answers = {
+        question["id"]: (
+            "app/main.py main.py FastAPI include_router Router Service Repository "
+            "Database login app/api/auth.py model schema test"
+        )
+        for question in quiz["questions"]
+    }
     result = AssessmentAgent().evaluate(quiz, answers)
 
     assert plan["total_lessons"] >= 7
     assert plan["lessons"][0]["project_id"] == "demo"
     assert len(quiz["questions"]) >= 3
     assert result["score"] >= 60
-
