@@ -4,11 +4,12 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from app.agents.assessment_agent import AssessmentAgent
 from app.agents.curriculum_agent import CurriculumAgent
 from app.agents.quiz_agent import QuizAgent
+from app.agents.qa_agent import QAAgent
 from app.agents.teaching_agent import TeachingAgent
 from app.core.config import settings
 from app.diagrams.architecture_builder import build_all_diagrams
@@ -24,6 +25,7 @@ analysis_service = AnalysisService()
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
 quiz_agent = QuizAgent()
+qa_agent = QAAgent()
 assessment_agent = AssessmentAgent()
 
 
@@ -120,6 +122,31 @@ def get_diagram(project_id: str, diagram_id: str) -> dict:
     raise HTTPException(status_code=404, detail="图表不存在")
 
 
+@router.get("/projects/{project_id}/diagrams/{diagram_id}/download")
+def download_diagram(project_id: str, diagram_id: str) -> Response:
+    diagrams = repository.get_diagrams(project_id)
+    for diagram in diagrams:
+        if diagram["id"] == diagram_id:
+            extension = "mmd" if diagram["format"] == "mermaid" else "puml"
+            return Response(
+                content=diagram["source"],
+                media_type="text/plain; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{diagram_id}.{extension}"'},
+            )
+    raise HTTPException(status_code=404, detail="图表不存在")
+
+
+@router.post("/projects/{project_id}/ask")
+def ask_project(project_id: str, payload: dict[str, str]) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    question = payload.get("question", "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    return qa_agent.answer(from_dict(analysis_payload), question)
+
+
 @router.post("/projects/{project_id}/learning-plan")
 def generate_learning_plan(project_id: str) -> dict:
     analysis_payload = repository.get_analysis(project_id)
@@ -160,7 +187,7 @@ def generate_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="课程不存在")
-    project_id = _project_id_from_lesson_plan(lesson_id)
+    project_id = lesson.get("project_id") or _project_id_from_lesson_plan(lesson_id)
     analysis_payload = repository.get_analysis(project_id) if project_id else None
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
@@ -174,7 +201,7 @@ def generate_quiz(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="课程不存在")
-    project_id = _project_id_from_lesson_plan(lesson_id)
+    project_id = lesson.get("project_id") or _project_id_from_lesson_plan(lesson_id)
     analysis_payload = repository.get_analysis(project_id) if project_id else None
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
@@ -190,7 +217,8 @@ def submit_quiz(quiz_id: str, answers: dict[str, str]) -> dict:
         raise HTTPException(status_code=404, detail="测验不存在")
     evaluation = assessment_agent.evaluate(quiz, answers)
     result = repository.save_quiz_result(quiz_id, evaluation)
-    project_id = _project_id_from_lesson_plan(quiz["lesson_id"])
+    lesson = repository.get_lesson(quiz["lesson_id"]) or {}
+    project_id = lesson.get("project_id") or _project_id_from_lesson_plan(quiz["lesson_id"])
     if project_id:
         repository.upsert_mastery(project_id, quiz["lesson_id"], evaluation["score"], evaluation["mastery_level"])
     return result
@@ -211,4 +239,3 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
         if any(lesson["id"] == lesson_id for lesson in plan.get("lessons", [])):
             return project["id"]
     return None
-

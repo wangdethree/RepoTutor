@@ -60,6 +60,8 @@ docker compose up --build
 - `GET /api/projects/{project_id}/analysis`
 - `POST /api/projects/{project_id}/diagrams/generate`
 - `GET /api/projects/{project_id}/diagrams`
+- `GET /api/projects/{project_id}/diagrams/{diagram_id}/download`
+- `POST /api/projects/{project_id}/ask`
 - `POST /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/learning-plan`
 - `GET /api/lessons/{lesson_id}`
@@ -70,4 +72,3 @@ docker compose up --build
 ## 安全边界
 
 RepoTutor 只读取上传仓库的文本源码，不安装依赖、不导入上传项目、不运行测试、不执行任何用户代码。ZIP 解压会限制大小、文件数、单文件大小，并拦截路径穿越、软链接、`.env`、私钥、证书、`.git` 等敏感内容。
-
