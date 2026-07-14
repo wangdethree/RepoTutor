@@ -176,6 +176,9 @@ class AstParser:
                         field.field_type = self._unparse(item.annotation)
                     fields.append(field)
 
+        if not table_name and not fields and not relationships:
+            return None
+
         return ModelInfo(
             file_path=file_path,
             class_name=node.name,
@@ -258,4 +261,3 @@ class AstParser:
             return ast.unparse(node)
         except Exception:
             return ""
-
