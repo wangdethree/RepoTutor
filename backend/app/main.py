@@ -23,7 +23,18 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.get("/")
+def root() -> dict[str, object]:
+    return {
+        "name": "RepoTutor API",
+        "status": "ok",
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "api_prefix": "/api",
+        "frontend_url": "http://127.0.0.1:8501",
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
-
