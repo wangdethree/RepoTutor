@@ -4,6 +4,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import settings
+from app.repositories.sqlite_repository import SQLiteRepository
+
+
+LLM_SETTING_KEYS = [
+    "llm_api_key",
+    "llm_base_url",
+    "llm_model",
+    "llm_temperature",
+]
 
 
 @dataclass
@@ -21,10 +30,11 @@ class LLMClient:
         base_url: str | None = None,
         model: str | None = None,
     ) -> None:
-        self.api_key = api_key or settings.llm_api_key
-        self.base_url = base_url or settings.llm_base_url
-        self.model = model or settings.llm_model
-        self.temperature = settings.llm_temperature
+        saved = self._load_saved_settings()
+        self.api_key = api_key or saved.get("llm_api_key") or settings.llm_api_key
+        self.base_url = base_url or saved.get("llm_base_url") or settings.llm_base_url
+        self.model = model or saved.get("llm_model") or settings.llm_model
+        self.temperature = float(saved.get("llm_temperature") or settings.llm_temperature)
 
     async def complete_json(self, messages: list[dict[str, str]]) -> LLMResponse:
         if not self.api_key:
@@ -44,3 +54,8 @@ class LLMClient:
         content = response.choices[0].message.content or "{}"
         return LLMResponse(content=content, raw=response.model_dump())
 
+    def _load_saved_settings(self) -> dict[str, str]:
+        try:
+            return SQLiteRepository().get_app_settings(LLM_SETTING_KEYS)
+        except Exception:
+            return {}

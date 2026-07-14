@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -27,6 +28,92 @@ teaching_agent = TeachingAgent()
 quiz_agent = QuizAgent()
 qa_agent = QAAgent()
 assessment_agent = AssessmentAgent()
+
+LLM_SETTING_KEYS = [
+    "llm_api_key",
+    "llm_base_url",
+    "llm_model",
+    "llm_temperature",
+]
+
+LLM_ENV_NAMES = {
+    "llm_api_key": "LLM_API_KEY",
+    "llm_base_url": "LLM_BASE_URL",
+    "llm_model": "LLM_MODEL",
+    "llm_temperature": "LLM_TEMPERATURE",
+}
+
+
+@router.get("/settings/llm")
+def get_llm_settings() -> dict:
+    stored = repository.get_app_settings(LLM_SETTING_KEYS)
+    api_key = stored.get("llm_api_key", settings.llm_api_key)
+    base_url = stored.get("llm_base_url", settings.llm_base_url)
+    model = stored.get("llm_model", settings.llm_model)
+    temperature = stored.get("llm_temperature", str(settings.llm_temperature))
+    return {
+        "api_key_configured": bool(api_key),
+        "api_key_masked": _mask_secret(api_key),
+        "api_key_source": _setting_source(stored, "llm_api_key"),
+        "base_url": base_url,
+        "base_url_source": _setting_source(stored, "llm_base_url"),
+        "model": model,
+        "model_source": _setting_source(stored, "llm_model"),
+        "temperature": float(temperature),
+        "temperature_source": _setting_source(stored, "llm_temperature"),
+    }
+
+
+@router.put("/settings/llm")
+def update_llm_settings(payload: dict) -> dict:
+    current = repository.get_app_settings(LLM_SETTING_KEYS)
+    values: dict[str, str] = {}
+
+    base_url = str(payload.get("base_url", current.get("llm_base_url", settings.llm_base_url))).strip()
+    model = str(payload.get("model", current.get("llm_model", settings.llm_model))).strip()
+    temperature = payload.get("temperature", current.get("llm_temperature", str(settings.llm_temperature)))
+    api_key = str(payload.get("api_key", "")).strip()
+
+    if not base_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="模型接口地址必须以 http:// 或 https:// 开头")
+    if not model:
+        raise HTTPException(status_code=400, detail="模型名称不能为空")
+    try:
+        normalized_temperature = float(temperature)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="temperature 必须是数字") from exc
+    if not 0 <= normalized_temperature <= 2:
+        raise HTTPException(status_code=400, detail="temperature 必须在 0 到 2 之间")
+
+    values["llm_base_url"] = base_url.rstrip("/")
+    values["llm_model"] = model
+    values["llm_temperature"] = str(normalized_temperature)
+
+    if bool(payload.get("clear_api_key")):
+        values["llm_api_key"] = ""
+    elif api_key and not _looks_masked(api_key):
+        values["llm_api_key"] = api_key
+
+    repository.save_app_settings(values)
+    return get_llm_settings()
+
+
+@router.post("/settings/llm/validate")
+def validate_llm_settings() -> dict:
+    config = get_llm_settings()
+    problems: list[str] = []
+    if not config["api_key_configured"]:
+        problems.append("未配置 API Key，LLM 增强功能会停用")
+    if not config["base_url"].startswith(("http://", "https://")):
+        problems.append("Base URL 格式不正确")
+    if not config["model"]:
+        problems.append("模型名称为空")
+    return {
+        "ok": not problems,
+        "mode": "llm_enabled" if not problems else "deterministic_fallback",
+        "problems": problems,
+        "message": "模型接口配置完整" if not problems else "当前会使用确定性离线规则，不调用模型",
+    }
 
 
 @router.post("/projects/upload")
@@ -239,3 +326,23 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
         if any(lesson["id"] == lesson_id for lesson in plan.get("lessons", [])):
             return project["id"]
     return None
+
+
+def _mask_secret(value: str) -> str:
+    if not value:
+        return ""
+    if len(value) <= 8:
+        return "*" * len(value)
+    return f"{value[:4]}...{value[-4:]}"
+
+
+def _looks_masked(value: str) -> bool:
+    return "*" in value or "..." in value
+
+
+def _setting_source(stored: dict[str, str], key: str) -> str:
+    if key in stored:
+        return "database"
+    if os.getenv(LLM_ENV_NAMES[key]):
+        return "environment"
+    return "default"

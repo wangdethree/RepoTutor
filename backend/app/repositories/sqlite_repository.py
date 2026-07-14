@@ -112,6 +112,12 @@ class SQLiteRepository:
                     status TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -344,6 +350,29 @@ class SQLiteRepository:
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def get_app_settings(self, keys: list[str]) -> dict[str, str]:
+        placeholders = ",".join("?" for _ in keys)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})",
+                keys,
+            ).fetchall()
+        return {row["key"]: row["value"] for row in rows}
+
+    def save_app_settings(self, values: dict[str, str]) -> None:
+        now = self._now()
+        with self._connect() as conn:
+            for key, value in values.items():
+                conn.execute(
+                    """
+                    INSERT INTO app_settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE
+                    SET value = excluded.value, updated_at = excluded.updated_at
+                    """,
+                    (key, value, now),
+                )
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -359,4 +388,3 @@ class SQLiteRepository:
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
-

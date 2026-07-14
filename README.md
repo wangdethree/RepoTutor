@@ -72,6 +72,9 @@ docker compose up --build
 - `GET /api/projects/{project_id}/diagrams`
 - `GET /api/projects/{project_id}/diagrams/{diagram_id}/download`
 - `POST /api/projects/{project_id}/ask`
+- `GET /api/settings/llm`
+- `PUT /api/settings/llm`
+- `POST /api/settings/llm/validate`
 - `POST /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/learning-plan`
 - `GET /api/lessons/{lesson_id}`
