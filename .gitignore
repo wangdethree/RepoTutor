@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+artifacts/uploads/*
+artifacts/diagrams/*
+artifacts/reports/*
+!artifacts/uploads/.gitkeep
+!artifacts/diagrams/.gitkeep
+!artifacts/reports/.gitkeep
+repotutor.db
+
