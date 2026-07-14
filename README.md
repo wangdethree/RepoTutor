@@ -32,6 +32,16 @@ streamlit run frontend/Home.py
 
 默认 API 地址是 `http://localhost:8000`，也可以通过 `REPO_TUTOR_API_URL` 覆盖。
 
+## 离线验证
+
+如果当前环境无法安装第三方依赖，可以先运行核心闭环验证：
+
+```bash
+python3 scripts/verify_offline.py
+```
+
+该脚本会验证 ZIP 安全、AST 分析、架构图、学习路线、项目问答、测验评分等不依赖 Web 框架的能力。
+
 ## Docker Compose
 
 ```bash
