@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    environment:
+      REPO_TUTOR_DATABASE_URL: sqlite:////app/data/repotutor.db
+      REPO_TUTOR_ARTIFACT_DIR: /app/artifacts
+    ports:
+      - "8000:8000"
+    volumes:
+      - repotutor-data:/app/data
+      - ./artifacts:/app/artifacts
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    environment:
+      REPO_TUTOR_API_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+volumes:
+  repotutor-data:
+

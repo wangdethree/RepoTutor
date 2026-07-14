@@ -16,6 +16,7 @@ class CurriculumAgent:
 
         lessons = [
             self._lesson(
+                analysis.project_id,
                 1,
                 "项目入口与启动流程",
                 ["识别 FastAPI 实例", "理解启动文件和配置加载"],
@@ -24,6 +25,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 2,
                 "路由注册与请求分发",
                 ["看懂 API 路由", "定位请求处理函数"],
@@ -32,6 +34,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 3,
                 "请求响应 Schema 与数据校验",
                 ["理解 Pydantic Schema", "区分输入输出模型"],
@@ -40,6 +43,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 4,
                 "数据库模型与仓储层",
                 ["理解 SQLAlchemy 模型", "看懂数据访问边界"],
@@ -48,6 +52,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 5,
                 "Service 层业务调用链",
                 ["梳理路由到业务层的调用关系", "识别核心业务函数"],
@@ -56,6 +61,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 6,
                 "认证、配置与横切关注点",
                 ["理解认证配置", "定位 JWT、Redis、日志等横切模块"],
@@ -64,6 +70,7 @@ class CurriculumAgent:
                 minutes,
             ),
             self._lesson(
+                analysis.project_id,
                 7,
                 "测试、异常处理与修改影响分析",
                 ["评估修改影响范围", "找到测试和异常处理入口"],
@@ -76,6 +83,7 @@ class CurriculumAgent:
         if profile.get("learning_goal") == "准备项目面试":
             lessons.append(
                 self._lesson(
+                    analysis.project_id,
                     8,
                     "项目面试讲解与架构取舍",
                     ["用架构图讲清项目", "解释分层和技术选型"],
@@ -99,6 +107,7 @@ class CurriculumAgent:
 
     def _lesson(
         self,
+        project_id: str,
         order: int,
         title: str,
         objectives: list[str],
@@ -107,7 +116,8 @@ class CurriculumAgent:
         minutes: int,
     ) -> dict:
         return {
-            "id": f"lesson-{order}",
+            "id": f"{project_id}-lesson-{order}",
+            "project_id": project_id,
             "title": title,
             "order_index": order,
             "objectives": objectives,
@@ -127,4 +137,3 @@ class CurriculumAgent:
 
     def _daily_minutes(self, daily_time: str) -> int:
         return {"30 分钟": 30, "1 小时": 60, "2 小时": 120}.get(daily_time, 60)
-
