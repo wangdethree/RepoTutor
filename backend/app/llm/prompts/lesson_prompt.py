@@ -5,7 +5,12 @@ import json
 from app.schemas.analysis import AnalysisResult
 
 
-def build_lesson_messages(analysis: AnalysisResult, lesson: dict, deterministic_lesson: dict) -> list[dict[str, str]]:
+def build_lesson_messages(
+    analysis: AnalysisResult,
+    lesson: dict,
+    deterministic_lesson: dict,
+    code_context: list[dict] | None = None,
+) -> list[dict[str, str]]:
     """构造课程增强 Prompt，只暴露已验证的项目事实和确定性课程草稿。"""
 
     allowed_files = [
@@ -32,6 +37,7 @@ def build_lesson_messages(analysis: AnalysisResult, lesson: dict, deterministic_
         "lesson": lesson,
         "allowed_files": allowed_files,
         "allowed_routes": allowed_routes,
+        "code_context": code_context or [],
         "deterministic_lesson": deterministic_lesson,
         "output_contract": {
             "required_fields": [
@@ -48,6 +54,7 @@ def build_lesson_messages(analysis: AnalysisResult, lesson: dict, deterministic_
                 "quiz_entry",
             ],
             "reference_rule": "core_code_locations 中的 file 必须来自 allowed_files，line 必须在文件行数范围内。",
+            "grounding_rule": "解释与示例优先基于 code_context；如果上下文不足，保留确定性课程内容，不补写未经验证的细节。",
         },
     }
     return [
@@ -63,4 +70,3 @@ def build_lesson_messages(analysis: AnalysisResult, lesson: dict, deterministic_
             "content": json.dumps(payload, ensure_ascii=False),
         },
     ]
-

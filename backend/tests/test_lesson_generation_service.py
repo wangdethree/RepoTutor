@@ -86,6 +86,8 @@ async def test_lesson_generation_records_successful_llm_call(tmp_path: Path) -> 
     assert logs[0]["model"] == "fake-model"
     assert detail is not None
     assert detail["prompt"][0]["role"] == "system"
+    prompt_payload = json.loads(detail["prompt"][1]["content"])
+    assert prompt_payload["code_context"]
     assert "sk-test" not in json.dumps(detail, ensure_ascii=False)
 
 

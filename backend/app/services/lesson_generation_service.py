@@ -7,6 +7,7 @@ from typing import Any
 
 from app.agents.teaching_agent import TeachingAgent
 from app.llm.client import LLMClient
+from app.llm.context import LessonCodeContextBuilder
 from app.llm.prompts.lesson_prompt import build_lesson_messages
 from app.llm.validators import LessonOutputValidator, OutputValidationError
 from app.repositories.sqlite_repository import SQLiteRepository
@@ -21,10 +22,12 @@ class LessonGenerationService:
         teaching_agent: TeachingAgent | None = None,
         llm_client_factory: Callable[[], LLMClient] | None = None,
         repository: SQLiteRepository | None = None,
+        context_builder: LessonCodeContextBuilder | None = None,
     ) -> None:
         self.teaching_agent = teaching_agent or TeachingAgent()
         self.llm_client_factory = llm_client_factory or LLMClient
         self.repository = repository
+        self.context_builder = context_builder or LessonCodeContextBuilder()
 
     async def generate(self, analysis: AnalysisResult, lesson: dict) -> dict:
         deterministic = self.teaching_agent.generate(analysis, lesson)
@@ -35,7 +38,8 @@ class LessonGenerationService:
         if not llm_client.api_key:
             return deterministic
 
-        messages = build_lesson_messages(analysis, lesson, deterministic)
+        code_context = self.context_builder.build(analysis, lesson, deterministic)
+        messages = build_lesson_messages(analysis, lesson, deterministic, code_context)
         response = None
         started = time.perf_counter()
         try:
