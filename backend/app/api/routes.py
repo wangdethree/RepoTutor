@@ -17,12 +17,14 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.workflow_service import WorkflowService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
 
 
 router = APIRouter(prefix="/api")
 repository = SQLiteRepository()
 analysis_service = AnalysisService()
+workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
 quiz_agent = QuizAgent()
@@ -232,6 +234,30 @@ def ask_project(project_id: str, payload: dict[str, str]) -> dict:
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
     return qa_agent.answer(from_dict(analysis_payload), question)
+
+
+@router.post("/projects/{project_id}/agent-runs/onboarding")
+def run_onboarding_workflow(project_id: str) -> dict:
+    try:
+        return workflow_service.run_onboarding(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/projects/{project_id}/agent-runs")
+def list_project_agent_runs(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {"agent_runs": repository.list_agent_runs(project_id)}
+
+
+@router.get("/agent-runs/{run_id}")
+def get_agent_run(run_id: str) -> dict:
+    run = repository.get_agent_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Agent 运行记录不存在")
+    return run
 
 
 @router.post("/projects/{project_id}/learning-plan")

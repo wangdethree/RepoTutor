@@ -52,17 +52,12 @@ if st.button("开始分析", type="primary", disabled=zip_file is None):
         st.session_state["project_id"] = project_id
         st.write("ZIP 已安全解压")
 
-        analysis_response = requests.post(f"{API_URL}/api/projects/{project_id}/analyze", timeout=120)
-        analysis_response.raise_for_status()
-        st.write("静态分析完成")
-
-        diagrams_response = requests.post(f"{API_URL}/api/projects/{project_id}/diagrams/generate", timeout=120)
-        diagrams_response.raise_for_status()
-        st.write("架构图生成完成")
-
-        plan_response = requests.post(f"{API_URL}/api/projects/{project_id}/learning-plan", timeout=120)
-        plan_response.raise_for_status()
-        st.write("学习路线生成完成")
+        run_response = requests.post(f"{API_URL}/api/projects/{project_id}/agent-runs/onboarding", timeout=180)
+        run_response.raise_for_status()
+        run = run_response.json()
+        st.session_state["agent_run_id"] = run["id"]
+        st.write("Agent 工作流完成")
+        st.write(f"运行记录：{run['id']}")
         status.update(label="分析完成", state="complete")
 
     st.success("项目已导入，可以从左侧页面查看结果。")
@@ -81,4 +76,3 @@ try:
             st.rerun()
 except requests.RequestException:
     st.warning("后端服务暂不可用，请确认 FastAPI 已启动。")
-

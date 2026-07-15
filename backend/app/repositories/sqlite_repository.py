@@ -118,6 +118,26 @@ class SQLiteRepository:
                     value TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS agent_runs (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    run_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    state_json TEXT NOT NULL,
+                    error TEXT DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT DEFAULT ''
+                );
+
+                CREATE TABLE IF NOT EXISTS agent_run_events (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    step_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -205,7 +225,7 @@ class SQLiteRepository:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        diagram["id"],
+                        self._diagram_storage_id(project_id, diagram["id"]),
                         project_id,
                         diagram["kind"],
                         diagram["title"],
@@ -222,7 +242,10 @@ class SQLiteRepository:
                 "SELECT id, kind, title, format, source, description FROM diagrams WHERE project_id = ?",
                 (project_id,),
             ).fetchall()
-        return [self._row_to_dict(row) for row in rows]
+        diagrams = [self._row_to_dict(row) for row in rows]
+        for diagram in diagrams:
+            diagram["id"] = self._diagram_public_id(project_id, diagram["id"])
+        return diagrams
 
     def save_learning_plan(self, project_id: str, plan: dict) -> None:
         now = self._now()
@@ -373,6 +396,91 @@ class SQLiteRepository:
                     (key, value, now),
                 )
 
+    def create_agent_run(self, project_id: str, run_type: str, initial_state: dict) -> dict:
+        run_id = str(uuid.uuid4())
+        now = self._now()
+        payload = json.dumps(initial_state, ensure_ascii=False)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO agent_runs (id, project_id, run_type, status, state_json, started_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (run_id, project_id, run_type, "RUNNING", payload, now),
+            )
+        return self.get_agent_run(run_id) or {}
+
+    def record_agent_event(self, run_id: str, step_name: str, status: str, payload: dict) -> None:
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO agent_run_events (id, run_id, step_name, status, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    run_id,
+                    step_name,
+                    status,
+                    json.dumps(payload, ensure_ascii=False),
+                    now,
+                ),
+            )
+
+    def finish_agent_run(self, run_id: str, status: str, state: dict, error: str = "") -> None:
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE agent_runs
+                SET status = ?, state_json = ?, error = ?, completed_at = ?
+                WHERE id = ?
+                """,
+                (status, json.dumps(state, ensure_ascii=False), error, now, run_id),
+            )
+
+    def list_agent_runs(self, project_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, project_id, run_type, status, error, started_at, completed_at
+                FROM agent_runs
+                WHERE project_id = ?
+                ORDER BY started_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_agent_run(self, run_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
+        if not row:
+            return None
+        data = self._row_to_dict(row)
+        data["state"] = json.loads(data.pop("state_json"))
+        data["events"] = self.list_agent_run_events(run_id)
+        return data
+
+    def list_agent_run_events(self, run_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, run_id, step_name, status, payload_json, created_at
+                FROM agent_run_events
+                WHERE run_id = ?
+                ORDER BY created_at ASC
+                """,
+                (run_id,),
+            ).fetchall()
+        events: list[dict] = []
+        for row in rows:
+            event = self._row_to_dict(row)
+            event["payload"] = json.loads(event.pop("payload_json"))
+            events.append(event)
+        return events
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -385,6 +493,13 @@ class SQLiteRepository:
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         return {key: row[key] for key in row.keys()}
+
+    def _diagram_storage_id(self, project_id: str, diagram_id: str) -> str:
+        return f"{project_id}:{diagram_id}"
+
+    def _diagram_public_id(self, project_id: str, diagram_id: str) -> str:
+        prefix = f"{project_id}:"
+        return diagram_id.removeprefix(prefix)
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()

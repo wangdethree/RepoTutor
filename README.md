@@ -11,6 +11,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 根据用户画像生成 5 到 10 节学习路线。
 - 生成引用真实文件、函数、类和行号的课程。
 - 生成测验、评分并更新知识点掌握度。
+- LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。
 - OpenAI 兼容 LLM 客户端预留，V1 默认用确定性规则保证离线可演示。
 
@@ -59,7 +60,8 @@ docker compose up --build
 2. 在 Streamlit 首页上传 ZIP。
 3. 选择 Python 水平、FastAPI 水平、学习目标和每天可用时间。
 4. 点击开始分析。
-5. 进入项目概览、架构图、学习路线和课程测验页面。
+5. 查看 Agent 运行记录，确认分析、架构图和学习路线节点已完成。
+6. 进入项目概览、架构图、学习路线和课程测验页面。
 
 ## API 摘要
 
@@ -72,6 +74,9 @@ docker compose up --build
 - `GET /api/projects/{project_id}/diagrams`
 - `GET /api/projects/{project_id}/diagrams/{diagram_id}/download`
 - `POST /api/projects/{project_id}/ask`
+- `POST /api/projects/{project_id}/agent-runs/onboarding`
+- `GET /api/projects/{project_id}/agent-runs`
+- `GET /api/agent-runs/{run_id}`
 - `GET /api/settings/llm`
 - `PUT /api/settings/llm`
 - `POST /api/settings/llm/validate`
