@@ -38,6 +38,12 @@ streamlit run frontend/Home.py
 
 默认 API 地址是 `http://localhost:8000`，也可以通过 `REPO_TUTOR_API_URL` 覆盖。
 
+后端启动后可以做 HTTP 烟雾验证：
+
+```bash
+python3 scripts/smoke_http.py
+```
+
 ## 离线验证
 
 如果当前环境无法安装第三方依赖，可以先运行核心闭环验证：
