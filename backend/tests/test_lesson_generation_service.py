@@ -8,6 +8,7 @@ import pytest
 
 from app.agents.curriculum_agent import CurriculumAgent
 from app.llm.client import LLMResponse
+from app.repositories.sqlite_repository import SQLiteRepository
 from app.services.analysis_service import AnalysisService
 from app.services.lesson_generation_service import LessonGenerationService
 
@@ -16,6 +17,8 @@ from app.services.lesson_generation_service import LessonGenerationService
 class FakeLLMClient:
     api_key: str
     content: str
+    model: str = "fake-model"
+    base_url: str = "https://fake.local/v1"
 
     async def complete_json(self, messages):
         return LLMResponse(content=self.content)
@@ -64,6 +67,29 @@ async def test_lesson_generation_accepts_valid_llm_output() -> None:
 
 
 @pytest.mark.asyncio
+async def test_lesson_generation_records_successful_llm_call(tmp_path: Path) -> None:
+    analysis, lesson = _analysis_and_lesson()
+    repository = SQLiteRepository(f"sqlite:///{tmp_path / 'llm-audit.db'}")
+    deterministic = LessonGenerationService(llm_client_factory=lambda: FakeLLMClient(api_key="", content="{}"))
+    base_payload = await deterministic.generate(analysis, lesson)
+    service = LessonGenerationService(
+        llm_client_factory=lambda: FakeLLMClient(api_key="sk-test", content=json.dumps(base_payload, ensure_ascii=False)),
+        repository=repository,
+    )
+
+    payload = await service.generate(analysis, lesson)
+
+    logs = repository.list_llm_call_logs(analysis.project_id)
+    detail = repository.get_llm_call_log(logs[0]["id"])
+    assert payload["generation_mode"] == "llm"
+    assert logs[0]["status"] == "SUCCEEDED"
+    assert logs[0]["model"] == "fake-model"
+    assert detail is not None
+    assert detail["prompt"][0]["role"] == "system"
+    assert "sk-test" not in json.dumps(detail, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
 async def test_lesson_generation_falls_back_when_llm_hallucinates_reference() -> None:
     analysis, lesson = _analysis_and_lesson()
     bad_payload = {
@@ -88,3 +114,35 @@ async def test_lesson_generation_falls_back_when_llm_hallucinates_reference() ->
     assert payload["generation_mode"] == "deterministic_fallback"
     assert "不存在的文件" in payload["llm_error"]
 
+
+@pytest.mark.asyncio
+async def test_lesson_generation_records_validation_failure(tmp_path: Path) -> None:
+    analysis, lesson = _analysis_and_lesson()
+    repository = SQLiteRepository(f"sqlite:///{tmp_path / 'llm-audit.db'}")
+    bad_payload = {
+        "id": lesson["id"],
+        "title": lesson["title"],
+        "objectives": ["测试"],
+        "why": "测试",
+        "core_code_locations": [{"file": "fake.py", "line": 1, "name": "fake", "kind": "source"}],
+        "architecture_hint": "测试",
+        "explanation": ["测试"],
+        "design_reason": "测试",
+        "pitfalls": ["测试"],
+        "summary": "测试",
+        "quiz_entry": "/quiz",
+    }
+    service = LessonGenerationService(
+        llm_client_factory=lambda: FakeLLMClient(api_key="sk-test", content=json.dumps(bad_payload, ensure_ascii=False)),
+        repository=repository,
+    )
+
+    payload = await service.generate(analysis, lesson)
+
+    logs = repository.list_llm_call_logs(analysis.project_id)
+    detail = repository.get_llm_call_log(logs[0]["id"])
+    assert payload["generation_mode"] == "deterministic_fallback"
+    assert logs[0]["status"] == "FAILED_VALIDATION"
+    assert "不存在的文件" in logs[0]["error"]
+    assert detail is not None
+    assert "fake.py" in detail["response"]["content"]

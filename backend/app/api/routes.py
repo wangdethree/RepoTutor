@@ -5,7 +5,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 
 from app.agents.assessment_agent import AssessmentAgent
 from app.agents.curriculum_agent import CurriculumAgent
@@ -28,7 +28,7 @@ analysis_service = AnalysisService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
-lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent)
+lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent, repository=repository)
 quiz_agent = QuizAgent()
 qa_agent = QAAgent()
 assessment_agent = AssessmentAgent()
@@ -260,6 +260,22 @@ def get_agent_run(run_id: str) -> dict:
     if not run:
         raise HTTPException(status_code=404, detail="Agent 运行记录不存在")
     return run
+
+
+@router.get("/projects/{project_id}/llm-call-logs")
+def list_project_llm_call_logs(project_id: str, limit: int = Query(20, ge=1, le=100)) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {"llm_call_logs": repository.list_llm_call_logs(project_id, limit=limit)}
+
+
+@router.get("/llm-call-logs/{call_id}")
+def get_llm_call_log(call_id: str) -> dict:
+    call_log = repository.get_llm_call_log(call_id)
+    if not call_log:
+        raise HTTPException(status_code=404, detail="LLM 调用记录不存在")
+    return call_log
 
 
 @router.post("/projects/{project_id}/learning-plan")

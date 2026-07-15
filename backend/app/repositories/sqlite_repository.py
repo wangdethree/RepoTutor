@@ -138,6 +138,21 @@ class SQLiteRepository:
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS llm_call_logs (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    lesson_id TEXT DEFAULT '',
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    base_url TEXT NOT NULL,
+                    prompt_json TEXT NOT NULL,
+                    response_json TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    error TEXT DEFAULT '',
+                    latency_ms INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -480,6 +495,71 @@ class SQLiteRepository:
             event["payload"] = json.loads(event.pop("payload_json"))
             events.append(event)
         return events
+
+    def record_llm_call(
+        self,
+        project_id: str,
+        lesson_id: str,
+        provider: str,
+        model: str,
+        base_url: str,
+        prompt: list[dict[str, str]],
+        response: dict[str, Any],
+        status: str,
+        error: str = "",
+        latency_ms: int = 0,
+    ) -> dict:
+        call_id = str(uuid.uuid4())
+        now = self._now()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO llm_call_logs (
+                    id, project_id, lesson_id, provider, model, base_url, prompt_json,
+                    response_json, status, error, latency_ms, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    call_id,
+                    project_id,
+                    lesson_id,
+                    provider,
+                    model,
+                    base_url,
+                    json.dumps(prompt, ensure_ascii=False),
+                    json.dumps(response, ensure_ascii=False),
+                    status,
+                    error,
+                    latency_ms,
+                    now,
+                ),
+            )
+        return self.get_llm_call_log(call_id) or {}
+
+    def list_llm_call_logs(self, project_id: str, limit: int = 20) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, project_id, lesson_id, provider, model, base_url, status, error, latency_ms, created_at
+                FROM llm_call_logs
+                WHERE project_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (project_id, limit),
+            ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_llm_call_log(self, call_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM llm_call_logs WHERE id = ?", (call_id,)).fetchone()
+        if not row:
+            return None
+        data = self._row_to_dict(row)
+        data["prompt"] = json.loads(data.pop("prompt_json"))
+        data["response"] = json.loads(data.pop("response_json"))
+        return data
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

@@ -12,6 +12,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 生成引用真实文件、函数、类和行号的课程。
 - 对课程输出做事实校验，拦截不存在的文件引用和越界行号。
 - 课程生成支持可选 LLM 增强，模型输出校验失败时自动回退到确定性课程。
+- 记录 LLM 调用审计：Prompt、响应、状态、耗时和失败原因，方便排查幻觉与回退。
 - 生成测验、评分并更新知识点掌握度。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。
@@ -64,6 +65,7 @@ docker compose up --build
 4. 点击开始分析。
 5. 查看 Agent 运行记录，确认分析、架构图和学习路线节点已完成。
 6. 进入项目概览、架构图、学习路线和课程测验页面。
+7. 配置模型接口后，可在 LLM 调用审计页面查看课程增强的提示词、响应和校验结果。
 
 ## API 摘要
 
@@ -79,6 +81,8 @@ docker compose up --build
 - `POST /api/projects/{project_id}/agent-runs/onboarding`
 - `GET /api/projects/{project_id}/agent-runs`
 - `GET /api/agent-runs/{run_id}`
+- `GET /api/projects/{project_id}/llm-call-logs`
+- `GET /api/llm-call-logs/{call_id}`
 - `GET /api/settings/llm`
 - `PUT /api/settings/llm`
 - `POST /api/settings/llm/validate`
