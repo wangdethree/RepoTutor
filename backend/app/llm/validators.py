@@ -68,3 +68,31 @@ class LessonOutputValidator:
         lesson["fact_checked"] = True
         return lesson
 
+
+class QAOutputValidator:
+    """校验项目问答输出，确保回答引用仍然落在真实源码上。"""
+
+    REQUIRED_STRING_FIELDS = ["question", "answer"]
+    REQUIRED_LIST_FIELDS = ["facts", "inferences", "references"]
+
+    def __init__(self, analysis: AnalysisResult) -> None:
+        self.reference_validator = CodeReferenceValidator(analysis)
+
+    def validate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        answer = deepcopy(payload)
+        for field in self.REQUIRED_STRING_FIELDS:
+            if not str(answer.get(field, "")).strip():
+                raise OutputValidationError(f"问答输出缺少字段: {field}")
+        for field in self.REQUIRED_LIST_FIELDS:
+            if not isinstance(answer.get(field), list):
+                raise OutputValidationError(f"问答输出字段不是列表: {field}")
+
+        answer["facts"] = [str(item) for item in answer["facts"] if str(item).strip()]
+        answer["inferences"] = [str(item) for item in answer["inferences"] if str(item).strip()]
+        if not answer["facts"]:
+            raise OutputValidationError("问答输出缺少事实依据")
+        answer["references"] = self.reference_validator.validate_many(answer["references"])
+        if not answer["references"]:
+            raise OutputValidationError("问答输出缺少代码引用")
+        answer["fact_checked"] = True
+        return answer

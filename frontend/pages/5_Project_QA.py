@@ -29,6 +29,12 @@ if st.button("提问", type="primary", disabled=not question.strip()):
         st.stop()
     result = response.json()
     st.subheader("回答")
+    cols = st.columns(3)
+    cols[0].metric("生成模式", result.get("generation_mode", "deterministic"))
+    cols[1].metric("事实校验", "通过" if result.get("fact_checked") else "未标记")
+    cols[2].metric("引用数", len(result.get("references", [])))
+    if result.get("llm_error"):
+        st.warning(f"LLM 增强已回退：{result['llm_error']}")
     st.write(result["answer"])
     st.subheader("事实依据")
     for fact in result["facts"]:

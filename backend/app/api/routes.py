@@ -18,6 +18,7 @@ from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
 from app.services.lesson_generation_service import LessonGenerationService
+from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
 from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
 from app.services.workflow_service import WorkflowService
@@ -35,6 +36,7 @@ teaching_agent = TeachingAgent()
 lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent, repository=repository)
 quiz_agent = QuizAgent()
 qa_agent = QAAgent()
+qa_generation_service = QAGenerationService(qa_agent=qa_agent, repository=repository)
 assessment_agent = AssessmentAgent()
 
 LLM_SETTING_KEYS = [
@@ -84,6 +86,7 @@ def get_capabilities() -> dict:
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
+            "llm_project_qa": llm_config["api_key_configured"],
             "llm_audit": True,
             "source_browser": True,
             "learning_progress": True,
@@ -299,14 +302,14 @@ def download_diagram(project_id: str, diagram_id: str) -> Response:
 
 
 @router.post("/projects/{project_id}/ask")
-def ask_project(project_id: str, payload: dict[str, str]) -> dict:
+async def ask_project(project_id: str, payload: dict[str, str]) -> dict:
     analysis_payload = repository.get_analysis(project_id)
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
     question = payload.get("question", "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
-    return qa_agent.answer(from_dict(analysis_payload), question)
+    return await qa_generation_service.answer(from_dict(analysis_payload), question)
 
 
 @router.post("/projects/{project_id}/agent-runs/onboarding")
