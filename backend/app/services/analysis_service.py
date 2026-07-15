@@ -6,7 +6,7 @@ from app.analyzers.ast_parser import AstParser
 from app.analyzers.dependency_analyzer import DependencyAnalyzer
 from app.analyzers.file_scanner import FileScanner
 from app.analyzers.importance_scorer import ImportanceScorer
-from app.schemas.analysis import AnalysisResult, CodeFile, ProjectSummary
+from app.schemas.analysis import AnalysisResult, CallEdge, CodeFile, ProjectSummary, SymbolInfo
 
 
 class AnalysisService:
@@ -27,6 +27,7 @@ class AnalysisService:
         routes = []
         models = []
         schemas = []
+        call_edges = []
         imports_by_path: dict[str, list[str]] = {}
 
         for file in python_files:
@@ -37,8 +38,10 @@ class AnalysisService:
             routes.extend(facts.routes)
             models.extend(facts.models)
             schemas.extend(facts.schemas)
+            call_edges.extend(facts.call_edges)
 
         dependencies = self.dependency_analyzer.build_edges(python_files)
+        call_edges = self._resolve_call_edges(call_edges, symbols)
 
         for file in files:
             if not file.path.endswith(".py"):
@@ -66,6 +69,7 @@ class AnalysisService:
             models=sorted(models, key=lambda item: (item.file_path, item.line)),
             schemas=sorted(schemas, key=lambda item: (item.file_path, item.line)),
             dependencies=dependencies,
+            call_edges=sorted(call_edges, key=lambda item: (item.source_file, item.call_line, item.target_name)),
         )
 
     def _read_sources(self, root_path: Path, files: list[CodeFile]) -> dict[str, str]:
@@ -160,3 +164,42 @@ class AnalysisService:
             return "中等"
         return "进阶"
 
+    def _resolve_call_edges(self, call_edges: list[CallEdge], symbols: list[SymbolInfo]) -> list[CallEdge]:
+        """把 AST 调用表达式尽量绑定到仓库内真实符号。"""
+
+        by_qualified = {(symbol.qualified_name or symbol.name): symbol for symbol in symbols}
+        by_name: dict[str, list[SymbolInfo]] = {}
+        for symbol in symbols:
+            by_name.setdefault(symbol.name, []).append(symbol)
+
+        resolved_edges: list[CallEdge] = []
+        for edge in call_edges:
+            symbol = self._resolve_call_target(edge.target_name, by_qualified, by_name)
+            if symbol:
+                edge.target_file = symbol.file_path
+                edge.target_symbol = symbol.qualified_name or symbol.name
+                edge.target_line = symbol.start_line
+                edge.confidence = 0.95 if edge.target_name in by_qualified else 0.65
+                edge.evidence = f"{edge.evidence} -> {edge.target_file}:{edge.target_line}"
+            resolved_edges.append(edge)
+        return resolved_edges
+
+    def _resolve_call_target(
+        self,
+        target_name: str,
+        by_qualified: dict[str, SymbolInfo],
+        by_name: dict[str, list[SymbolInfo]],
+    ) -> SymbolInfo | None:
+        if target_name in by_qualified:
+            return by_qualified[target_name]
+        if "." in target_name:
+            owner, method = target_name.rsplit(".", 1)
+            for candidate in by_name.get(method, []):
+                if candidate.parent == owner:
+                    return candidate
+            if owner in by_qualified:
+                return by_qualified[owner]
+        candidates = by_name.get(target_name, [])
+        if len(candidates) == 1:
+            return candidates[0]
+        return None

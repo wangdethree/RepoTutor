@@ -17,4 +17,8 @@ def test_analysis_service_extracts_fastapi_facts() -> None:
     assert any(model.class_name == "OrderItem" for model in analysis.models)
     assert any(schema.class_name == "OrderCreate" for schema in analysis.schemas)
     assert analysis.dependencies
-
+    assert any(edge.source_symbol == "login" and edge.target_symbol == "AuthService.login" for edge in analysis.call_edges)
+    assert any(
+        edge.source_symbol == "AuthService.login" and edge.target_symbol == "UserRepository.get_by_email"
+        for edge in analysis.call_edges
+    )

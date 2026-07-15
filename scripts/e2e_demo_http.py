@@ -49,7 +49,10 @@ def main() -> None:
 
     quiz = _request_json("POST", f"/api/lessons/{lesson_id}/quiz")
     answers = {
-        question["id"]: "main.py app/main.py FastAPI include_router Router Service Repository Database login app/api/auth.py model schema test"
+        question["id"]: (
+            "main.py app/main.py FastAPI include_router Router Service Repository Database "
+            "login AuthService AuthService.login UserRepository get_by_email app/api/auth.py model schema test"
+        )
         for question in quiz["questions"]
     }
     result = _request_json("POST", f"/api/quizzes/{quiz['id']}/submit", answers)

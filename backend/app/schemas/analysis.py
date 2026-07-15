@@ -25,6 +25,8 @@ class SymbolInfo:
     signature: str
     docstring: str | None
     decorators: list[str] = field(default_factory=list)
+    qualified_name: str = ""
+    parent: str = ""
 
 
 @dataclass
@@ -83,6 +85,21 @@ class DependencyEdge:
 
 
 @dataclass
+class CallEdge:
+    source_file: str
+    source_symbol: str
+    source_line: int
+    call_line: int
+    target_name: str
+    call_expression: str
+    target_file: str = ""
+    target_symbol: str = ""
+    target_line: int = 0
+    confidence: float = 0.5
+    evidence: str = ""
+
+
+@dataclass
 class DiagramArtifact:
     id: str
     kind: str
@@ -118,6 +135,7 @@ class AnalysisResult:
     models: list[ModelInfo] = field(default_factory=list)
     schemas: list[SchemaInfo] = field(default_factory=list)
     dependencies: list[DependencyEdge] = field(default_factory=list)
+    call_edges: list[CallEdge] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -149,6 +167,7 @@ def from_dict(payload: dict[str, Any]) -> AnalysisResult:
         for item in payload.get("schemas", [])
     ]
     dependencies = [DependencyEdge(**item) for item in payload.get("dependencies", [])]
+    call_edges = [CallEdge(**item) for item in payload.get("call_edges", [])]
     return AnalysisResult(
         project_id=payload["project_id"],
         root_path=payload["root_path"],
@@ -159,5 +178,5 @@ def from_dict(payload: dict[str, Any]) -> AnalysisResult:
         models=models,
         schemas=schemas,
         dependencies=dependencies,
+        call_edges=call_edges,
     )
-

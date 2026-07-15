@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.schemas.analysis import ModelField, ModelInfo, RouteInfo, SchemaField, SchemaInfo, SymbolInfo
+from app.schemas.analysis import CallEdge, ModelField, ModelInfo, RouteInfo, SchemaField, SchemaInfo, SymbolInfo
 
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
@@ -18,6 +18,7 @@ class FileAstFacts:
     models: list[ModelInfo] = field(default_factory=list)
     schemas: list[SchemaInfo] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
+    call_edges: list[CallEdge] = field(default_factory=list)
 
 
 class AstParser:
@@ -33,25 +34,9 @@ class AstParser:
         facts.imports = self._extract_imports(tree)
         facts.calls = self._extract_calls(tree)
 
-        for node in ast.walk(tree):
+        for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                decorators = [self._unparse(item) for item in node.decorator_list]
-                facts.symbols.append(
-                    SymbolInfo(
-                        file_path=file_path,
-                        name=node.name,
-                        symbol_type="async_function" if isinstance(node, ast.AsyncFunctionDef) else "function",
-                        start_line=node.lineno,
-                        end_line=getattr(node, "end_lineno", node.lineno),
-                        signature=self._signature(node),
-                        docstring=ast.get_docstring(node),
-                        decorators=decorators,
-                    )
-                )
-                route = self._route_from_function(file_path, node, decorators)
-                if route:
-                    facts.routes.append(route)
-
+                self._append_function_facts(file_path, node, facts)
             if isinstance(node, ast.ClassDef):
                 decorators = [self._unparse(item) for item in node.decorator_list]
                 facts.symbols.append(
@@ -64,6 +49,7 @@ class AstParser:
                         signature=node.name,
                         docstring=ast.get_docstring(node),
                         decorators=decorators,
+                        qualified_name=node.name,
                     )
                 )
                 schema = self._schema_from_class(file_path, node)
@@ -72,8 +58,47 @@ class AstParser:
                 model = self._model_from_class(file_path, node)
                 if model:
                     facts.models.append(model)
+                class_attr_types = self._class_self_attribute_types(node)
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        self._append_function_facts(
+                            file_path,
+                            item,
+                            facts,
+                            parent=node.name,
+                            class_attr_types=class_attr_types,
+                        )
 
         return facts
+
+    def _append_function_facts(
+        self,
+        file_path: str,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        facts: FileAstFacts,
+        parent: str = "",
+        class_attr_types: dict[str, str] | None = None,
+    ) -> None:
+        decorators = [self._unparse(item) for item in node.decorator_list]
+        qualified_name = f"{parent}.{node.name}" if parent else node.name
+        facts.symbols.append(
+            SymbolInfo(
+                file_path=file_path,
+                name=node.name,
+                symbol_type="async_function" if isinstance(node, ast.AsyncFunctionDef) else "function",
+                start_line=node.lineno,
+                end_line=getattr(node, "end_lineno", node.lineno),
+                signature=self._signature(node),
+                docstring=ast.get_docstring(node),
+                decorators=decorators,
+                qualified_name=qualified_name,
+                parent=parent,
+            )
+        )
+        route = self._route_from_function(file_path, node, decorators)
+        if route:
+            facts.routes.append(route)
+        facts.call_edges.extend(self._call_edges_from_function(file_path, node, qualified_name, class_attr_types or {}))
 
     def _extract_imports(self, tree: ast.AST) -> list[str]:
         imports: list[str] = []
@@ -97,6 +122,107 @@ class AstParser:
             if isinstance(node, ast.Call):
                 calls.append(self._call_name(node.func))
         return sorted(set(item for item in calls if item))
+
+    def _call_edges_from_function(
+        self,
+        file_path: str,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        source_symbol: str,
+        class_attr_types: dict[str, str],
+    ) -> list[CallEdge]:
+        local_types = self._local_type_bindings(node)
+        edges: list[CallEdge] = []
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Call):
+                continue
+            target_name = self._call_target_name(child.func, local_types, class_attr_types, source_symbol)
+            if not target_name:
+                continue
+            edges.append(
+                CallEdge(
+                    source_file=file_path,
+                    source_symbol=source_symbol,
+                    source_line=node.lineno,
+                    call_line=getattr(child, "lineno", node.lineno),
+                    target_name=target_name,
+                    call_expression=self._unparse(child),
+                    evidence=f"{file_path}:{getattr(child, 'lineno', node.lineno)} 调用 {target_name}",
+                )
+            )
+        return edges
+
+    def _call_target_name(
+        self,
+        func: ast.AST,
+        local_types: dict[str, str],
+        class_attr_types: dict[str, str],
+        source_symbol: str,
+    ) -> str:
+        if isinstance(func, ast.Name):
+            return func.id
+        if isinstance(func, ast.Attribute):
+            if isinstance(func.value, ast.Call):
+                owner = self._constructor_name_from_value(func.value)
+                return f"{owner}.{func.attr}" if owner else func.attr
+            base = self._attribute_key(func.value)
+            if base in local_types:
+                return f"{local_types[base]}.{func.attr}"
+            if base in class_attr_types:
+                return f"{class_attr_types[base]}.{func.attr}"
+            if base == "self" and "." in source_symbol:
+                return f"{source_symbol.split('.', 1)[0]}.{func.attr}"
+            return func.attr
+        return self._unparse(func)
+
+    def _local_type_bindings(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, str]:
+        bindings: dict[str, str] = {}
+        for child in ast.walk(node):
+            if isinstance(child, ast.Assign):
+                target_type = self._constructor_name_from_value(child.value)
+                if not target_type:
+                    continue
+                for target in child.targets:
+                    key = self._attribute_key(target)
+                    if key:
+                        bindings[key] = target_type
+            if isinstance(child, ast.AnnAssign):
+                target_type = self._constructor_name_from_value(child.value)
+                key = self._attribute_key(child.target)
+                if target_type and key:
+                    bindings[key] = target_type
+        return bindings
+
+    def _class_self_attribute_types(self, node: ast.ClassDef) -> dict[str, str]:
+        bindings: dict[str, str] = {}
+        for child in ast.walk(node):
+            if not isinstance(child, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = child.value
+            target_type = self._constructor_name_from_value(value)
+            if not target_type:
+                continue
+            targets = child.targets if isinstance(child, ast.Assign) else [child.target]
+            for target in targets:
+                key = self._attribute_key(target)
+                if key and key.startswith("self."):
+                    bindings[key] = target_type
+        return bindings
+
+    def _constructor_name_from_value(self, value: ast.AST | None) -> str:
+        if not isinstance(value, ast.Call):
+            return ""
+        name = self._call_name(value.func)
+        if name and name[:1].isupper():
+            return name
+        return ""
+
+    def _attribute_key(self, node: ast.AST | None) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            base = self._attribute_key(node.value)
+            return f"{base}.{node.attr}" if base else node.attr
+        return ""
 
     def _route_from_function(
         self,

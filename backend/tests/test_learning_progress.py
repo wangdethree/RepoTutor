@@ -42,7 +42,10 @@ def test_quiz_submission_updates_lesson_progress(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr(routes, "repository", repository)
     client = TestClient(app)
     answers = {
-        question["id"]: "main.py app/main.py FastAPI include_router Router Service Repository Database model schema test"
+        question["id"]: (
+            "main.py app/main.py FastAPI include_router Router Service Repository Database "
+            "AuthService AuthService.login UserRepository get_by_email model schema test"
+        )
         for question in quiz["questions"]
     }
 

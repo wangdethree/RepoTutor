@@ -59,7 +59,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
 
         quiz = _json(client.post(f"/api/lessons/{lesson_id}/quiz"))
         answers = {
-            item["id"]: "main.py app/main.py FastAPI include_router Router Service Repository Database login app/api/auth.py model schema test"
+            item["id"]: (
+                "main.py app/main.py FastAPI include_router Router Service Repository Database "
+                "login AuthService AuthService.login UserRepository get_by_email app/api/auth.py model schema test"
+            )
             for item in quiz["questions"]
         }
         result = _json(client.post(f"/api/quizzes/{quiz['id']}/submit", json=answers))

@@ -68,6 +68,20 @@ for index, location in enumerate(lesson["core_code_locations"]):
         st.session_state["source_file_path"] = location["file"]
         st.session_state["source_line"] = location["line"]
         st.switch_page("pages/9_Source_Browser.py")
+if lesson.get("call_chains"):
+    st.subheader("调用关系")
+    for chain in lesson["call_chains"]:
+        with st.container(border=True):
+            st.markdown(f"**{chain['title']}**")
+            st.write(" -> ".join(step["symbol"] for step in chain["steps"]))
+            for edge_index, edge in enumerate(chain["edges"]):
+                cols = st.columns([3, 4, 1])
+                cols[0].code(f"{edge['file']}:{edge['line']}")
+                cols[1].write(edge["expression"])
+                if cols[2].button("查看源码", key=f"call-chain-{chain['id']}-{edge_index}"):
+                    st.session_state["source_file_path"] = edge["file"]
+                    st.session_state["source_line"] = edge["line"]
+                    st.switch_page("pages/9_Source_Browser.py")
 st.subheader("关键讲解")
 for point in lesson["explanation"]:
     st.write(f"- {point}")

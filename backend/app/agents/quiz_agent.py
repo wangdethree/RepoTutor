@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.schemas.analysis import AnalysisResult
+from app.services.call_chain_service import CallChainService
 
 
 class QuizAgent:
@@ -10,6 +11,8 @@ class QuizAgent:
         related_files = lesson.get("related_files") or analysis.summary.core_modules[:3]
         first_file = related_files[0] if related_files else (analysis.files[0].path if analysis.files else "main.py")
         first_route = analysis.routes[0] if analysis.routes else None
+        call_chain = CallChainService().build_primary_chain(analysis)
+        call_symbols = [step["symbol"] for step in call_chain.get("steps", [])]
         questions = [
             {
                 "id": "q1",
@@ -26,8 +29,8 @@ class QuizAgent:
             {
                 "id": "q3",
                 "type": "调用链题",
-                "prompt": "请描述一次 HTTP 请求从 Router 到 Service/Repository 的主要路径。",
-                "expected_keywords": ["Router", "Service", "Repository", "Database"],
+                "prompt": self._call_chain_prompt(call_chain),
+                "expected_keywords": call_symbols[:4] or ["Router", "Service", "Repository", "Database"],
             },
         ]
         if first_route:
@@ -53,3 +56,11 @@ class QuizAgent:
             "questions": questions[:5],
         }
 
+    def _call_chain_prompt(self, call_chain: dict) -> str:
+        route = call_chain.get("route") or {}
+        if route:
+            return (
+                f"请描述 {route['method']} {route['path']} 从处理函数到后续核心函数/方法的主要调用路径，"
+                "并说明每一步大致负责什么。"
+            )
+        return "请描述一次 HTTP 请求从 Router 到 Service/Repository 的主要路径。"

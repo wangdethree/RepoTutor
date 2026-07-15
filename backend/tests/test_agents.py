@@ -23,7 +23,7 @@ def test_curriculum_quiz_and_assessment_flow() -> None:
     answers = {
         question["id"]: (
             "app/main.py main.py FastAPI include_router Router Service Repository "
-            "Database login app/api/auth.py model schema test"
+            "Database login AuthService AuthService.login UserRepository get_by_email app/api/auth.py model schema test"
         )
         for question in quiz["questions"]
     }
@@ -32,4 +32,5 @@ def test_curriculum_quiz_and_assessment_flow() -> None:
     assert plan["total_lessons"] >= 7
     assert plan["lessons"][0]["project_id"] == "demo"
     assert len(quiz["questions"]) >= 3
+    assert "POST /login" in quiz["questions"][2]["prompt"]
     assert result["score"] >= 60

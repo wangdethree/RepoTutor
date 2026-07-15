@@ -19,6 +19,7 @@ from app.agents.teaching_agent import TeachingAgent
 from app.llm.context import LessonCodeContextBuilder
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.services.analysis_service import AnalysisService
+from app.services.call_chain_service import CallChainService
 from app.services.workflow_service import WorkflowService
 
 
@@ -57,8 +58,22 @@ def main() -> None:
     _record(
         cases,
         "lesson_grounding",
-        lesson_payload.get("fact_checked") is True and _references_are_valid(analysis, lesson_payload["core_code_locations"]),
-        f"references={len(lesson_payload['core_code_locations'])}",
+        lesson_payload.get("fact_checked") is True
+        and _references_are_valid(analysis, lesson_payload["core_code_locations"])
+        and bool(lesson_payload.get("call_chains")),
+        (
+            f"references={len(lesson_payload['core_code_locations'])} "
+            f"call_chains={len(lesson_payload.get('call_chains', []))}"
+        ),
+    )
+
+    call_chain = CallChainService().build_primary_chain(analysis)
+    expected_chain = ["login", "AuthService.login", "UserRepository.get_by_email"]
+    _record(
+        cases,
+        "call_chain_grounding",
+        [step["symbol"] for step in call_chain["steps"]] == expected_chain,
+        " -> ".join(step["symbol"] for step in call_chain["steps"]),
     )
 
     snippets = LessonCodeContextBuilder().build(analysis, lesson, lesson_payload)
@@ -88,7 +103,10 @@ def main() -> None:
 
     quiz = QuizAgent().generate(analysis, lesson)
     answers = {
-        question["id"]: "main.py app/main.py FastAPI include_router Router Service Repository Database login app/api/auth.py model schema test"
+        question["id"]: (
+            "main.py app/main.py FastAPI include_router Router Service Repository Database "
+            "login AuthService AuthService.login UserRepository get_by_email app/api/auth.py model schema test"
+        )
         for question in quiz["questions"]
     }
     result = AssessmentAgent().evaluate(quiz, answers)

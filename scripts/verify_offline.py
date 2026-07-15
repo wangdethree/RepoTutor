@@ -47,7 +47,10 @@ def main() -> None:
 
     quiz = QuizAgent().generate(analysis, plan["lessons"][0])
     answers = {
-        question["id"]: "main.py app/main.py FastAPI include_router Router Service Repository Database login app/api/auth.py model schema test"
+        question["id"]: (
+            "main.py app/main.py FastAPI include_router Router Service Repository Database "
+            "login AuthService AuthService.login UserRepository get_by_email app/api/auth.py model schema test"
+        )
         for question in quiz["questions"]
     }
     result = AssessmentAgent().evaluate(quiz, answers)
@@ -81,4 +84,3 @@ def verify_safe_zip() -> None:
 
 if __name__ == "__main__":
     main()
-

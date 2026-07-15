@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.llm.validators import LessonOutputValidator
 from app.schemas.analysis import AnalysisResult
+from app.services.call_chain_service import CallChainService
 
 
 class TeachingAgent:
@@ -10,12 +11,14 @@ class TeachingAgent:
     def generate(self, analysis: AnalysisResult, lesson: dict) -> dict:
         related_files = lesson.get("related_files") or analysis.summary.core_modules[:4]
         references = self._references_for_files(analysis, related_files)
+        call_chains = self._call_chains_for_lesson(analysis, related_files)
         payload = {
             "id": lesson["id"],
             "title": lesson["title"],
             "objectives": lesson["objectives"],
             "why": self._why(lesson["title"]),
             "core_code_locations": references,
+            "call_chains": call_chains,
             "architecture_hint": self._architecture_hint(analysis, lesson),
             "explanation": self._explanation(analysis, lesson, references),
             "design_reason": self._design_reason(lesson["title"]),
@@ -24,6 +27,15 @@ class TeachingAgent:
             "quiz_entry": f"/api/lessons/{lesson['id']}/quiz",
         }
         return LessonOutputValidator(analysis).validate(payload)
+
+    def _call_chains_for_lesson(self, analysis: AnalysisResult, related_files: list[str]) -> list[dict]:
+        chains = CallChainService().build_route_chains(analysis)
+        matched = [
+            chain
+            for chain in chains
+            if any(step["file"] in related_files for step in chain["steps"]) or chain["route"].get("file") in related_files
+        ]
+        return (matched or chains[:1])[:3]
 
     def _references_for_files(self, analysis: AnalysisResult, files: list[str]) -> list[dict]:
         references: list[dict] = []
