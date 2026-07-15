@@ -32,3 +32,6 @@ jobs:
 
       - name: Run agent evaluation
         run: python scripts/evaluate_agents.py
+
+      - name: Run in-process e2e demo
+        run: python scripts/e2e_demo_inprocess.py

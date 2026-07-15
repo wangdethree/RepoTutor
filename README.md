@@ -46,7 +46,13 @@ streamlit run frontend/Home.py
 python3 scripts/smoke_http.py
 ```
 
-如果要走一遍 demo 项目的完整 HTTP 闭环：
+如果要走一遍 demo 项目的进程内端到端闭环：
+
+```bash
+python3 scripts/e2e_demo_inprocess.py
+```
+
+如果要验证已启动后端的真实 HTTP 闭环：
 
 ```bash
 python3 scripts/e2e_demo_http.py
@@ -90,6 +96,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `python -m pytest backend`
 - `python scripts/verify_offline.py`
 - `python scripts/evaluate_agents.py`
+- `python scripts/e2e_demo_inprocess.py`
 
 ## 演示流程
 
