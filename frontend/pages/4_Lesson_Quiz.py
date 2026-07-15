@@ -8,6 +8,16 @@ import streamlit as st
 
 API_URL = os.getenv("REPO_TUTOR_API_URL", "http://localhost:8000")
 
+
+def _status_label(status: str) -> str:
+    return {
+        "NOT_STARTED": "未开始",
+        "IN_PROGRESS": "学习中",
+        "NEEDS_REVIEW": "需复习",
+        "COMPLETED": "已完成",
+    }.get(status, status)
+
+
 st.set_page_config(page_title="课程与测验", page_icon="RT", layout="wide")
 st.title("课程与测验")
 
@@ -28,8 +38,22 @@ lesson_id = lesson_options[selected_title]
 st.session_state["lesson_id"] = lesson_id
 
 lesson = requests.post(f"{API_URL}/api/lessons/{lesson_id}/generate", timeout=60).json()
+if lesson.get("status") == "NOT_STARTED":
+    status_response = requests.post(f"{API_URL}/api/lessons/{lesson_id}/status", json={"status": "IN_PROGRESS"}, timeout=20)
+    if status_response.status_code == 200:
+        lesson = status_response.json()
 
 st.header(lesson["title"])
+status_cols = st.columns(4)
+status_cols[0].metric("课程状态", _status_label(lesson.get("status", "NOT_STARTED")))
+status_cols[1].metric("最近得分", lesson.get("last_score", "-"))
+status_cols[2].metric("掌握度", lesson.get("mastery_level", "-") or "-")
+if status_cols[3].button("标记完成"):
+    complete_response = requests.post(f"{API_URL}/api/lessons/{lesson_id}/complete", timeout=20)
+    complete_response.raise_for_status()
+    st.success("课程已标记完成")
+    st.rerun()
+
 st.subheader("为什么要学")
 st.write(lesson["why"])
 st.subheader("学习目标")
@@ -70,3 +94,9 @@ if st.button("提交测验", type="primary"):
     st.write("推荐动作：" + result["recommended_action"])
     if result["missing_points"]:
         st.warning("缺失点：" + "；".join(result["missing_points"]))
+    if result["score"] >= 80:
+        st.success("本节已自动标记完成。")
+    elif result["score"] >= 60:
+        st.info("本节保持学习中，建议补齐缺失点后再测一次。")
+    else:
+        st.warning("本节已标记为需复习。")

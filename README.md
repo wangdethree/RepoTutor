@@ -15,7 +15,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 记录 LLM 调用审计：Prompt、响应、状态、耗时和失败原因，方便排查幻觉与回退。
 - 安全源码浏览：只允许查看静态分析确认过的项目文件，便于对照课程和问答行号。
 - 后端健康检查与能力清单，便于本地调试和部署探活。
-- 生成测验、评分并更新知识点掌握度。
+- 生成测验、评分并更新课程状态、学习进度和知识点掌握度。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。
 - OpenAI 兼容 LLM 客户端预留，V1 默认用确定性规则保证离线可演示。
@@ -93,6 +93,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 6. 进入项目概览、架构图、学习路线和课程测验页面。
 7. 配置模型接口后，可在 LLM 调用审计页面查看课程增强的提示词、响应和校验结果。
 8. 进入源码浏览页面，按层级或关键词定位课程引用的文件。
+9. 进入学习进度页面，查看完成率、待复习课程和下一节推荐。
 
 ## API 摘要
 
@@ -119,7 +120,10 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/settings/llm/validate`
 - `POST /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/learning-plan`
+- `GET /api/projects/{project_id}/progress`
 - `GET /api/lessons/{lesson_id}`
+- `POST /api/lessons/{lesson_id}/status`
+- `POST /api/lessons/{lesson_id}/complete`
 - `POST /api/lessons/{lesson_id}/quiz`
 - `POST /api/quizzes/{quiz_id}/submit`
 - `GET /api/projects/{project_id}/mastery`

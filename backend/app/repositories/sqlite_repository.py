@@ -307,16 +307,106 @@ class SQLiteRepository:
     def get_learning_plan(self, project_id: str) -> dict | None:
         with self._connect() as conn:
             row = conn.execute("SELECT payload FROM learning_plans WHERE project_id = ?", (project_id,)).fetchone()
-        return json.loads(row["payload"]) if row else None
+        if not row:
+            return None
+        plan = json.loads(row["payload"])
+        lessons = self.list_lessons_for_project(project_id)
+        if lessons:
+            plan["lessons"] = lessons
+        plan["status"] = self._plan_status(lessons)
+        return plan
+
+    def list_lessons_for_project(self, project_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT lessons.*
+                FROM lessons
+                JOIN learning_plans ON lessons.plan_id = learning_plans.id
+                WHERE learning_plans.project_id = ?
+                ORDER BY lessons.order_index ASC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [self._lesson_from_row(row) for row in rows]
 
     def get_lesson(self, lesson_id: str) -> dict | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT payload FROM lessons WHERE id = ?", (lesson_id,)).fetchone()
-        return json.loads(row["payload"]) if row else None
+            row = conn.execute("SELECT * FROM lessons WHERE id = ?", (lesson_id,)).fetchone()
+        return self._lesson_from_row(row) if row else None
 
     def save_lesson_payload(self, lesson_id: str, payload: dict) -> None:
+        status = payload.get("status", "NOT_STARTED")
         with self._connect() as conn:
-            conn.execute("UPDATE lessons SET payload = ? WHERE id = ?", (json.dumps(payload, ensure_ascii=False), lesson_id))
+            conn.execute(
+                "UPDATE lessons SET status = ?, payload = ? WHERE id = ?",
+                (status, json.dumps(payload, ensure_ascii=False), lesson_id),
+            )
+
+    def update_lesson_status(
+        self,
+        lesson_id: str,
+        status: str,
+        score: int | None = None,
+        mastery_level: str = "",
+    ) -> dict | None:
+        lesson = self.get_lesson(lesson_id)
+        if not lesson:
+            return None
+        lesson["status"] = status
+        lesson["updated_at"] = self._now()
+        if status == "COMPLETED":
+            lesson["completed_at"] = lesson["updated_at"]
+        else:
+            lesson.pop("completed_at", None)
+        if score is not None:
+            lesson["last_score"] = score
+        if mastery_level:
+            lesson["mastery_level"] = mastery_level
+        self.save_lesson_payload(lesson_id, lesson)
+        return self.get_lesson(lesson_id)
+
+    def get_learning_progress(self, project_id: str) -> dict:
+        plan = self.get_learning_plan(project_id)
+        lessons = plan.get("lessons", []) if plan else []
+        mastery_by_lesson = {record["knowledge_point"]: record for record in self.get_mastery(project_id)}
+        enriched_lessons: list[dict] = []
+        for lesson in lessons:
+            mastery = mastery_by_lesson.get(lesson["id"], {})
+            enriched_lessons.append(
+                {
+                    "id": lesson["id"],
+                    "title": lesson["title"],
+                    "order_index": lesson["order_index"],
+                    "status": lesson.get("status", "NOT_STARTED"),
+                    "estimated_minutes": lesson.get("estimated_minutes", 0),
+                    "objectives": lesson.get("objectives", []),
+                    "related_files": lesson.get("related_files", []),
+                    "last_score": lesson.get("last_score"),
+                    "mastery_level": lesson.get("mastery_level") or mastery.get("status", ""),
+                    "mastery_score": mastery.get("score"),
+                    "completed_at": lesson.get("completed_at", ""),
+                    "updated_at": lesson.get("updated_at", mastery.get("updated_at", "")),
+                }
+            )
+        total = len(enriched_lessons)
+        completed = len([lesson for lesson in enriched_lessons if lesson["status"] == "COMPLETED"])
+        needs_review = len([lesson for lesson in enriched_lessons if lesson["status"] == "NEEDS_REVIEW"])
+        in_progress = len([lesson for lesson in enriched_lessons if lesson["status"] == "IN_PROGRESS"])
+        next_lesson = next((lesson for lesson in enriched_lessons if lesson["status"] != "COMPLETED"), None)
+        return {
+            "project_id": project_id,
+            "plan_id": plan["id"] if plan else "",
+            "plan_title": plan["title"] if plan else "",
+            "total_lessons": total,
+            "completed_lessons": completed,
+            "in_progress_lessons": in_progress,
+            "needs_review_lessons": needs_review,
+            "completion_rate": round(completed / total * 100) if total else 0,
+            "next_lesson_id": next_lesson["id"] if next_lesson else "",
+            "next_action": self._next_progress_action(total, completed, needs_review),
+            "lessons": enriched_lessons,
+        }
 
     def save_quiz(self, quiz: dict) -> None:
         now = self._now()
@@ -573,6 +663,34 @@ class SQLiteRepository:
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         return {key: row[key] for key in row.keys()}
+
+    def _lesson_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        lesson = json.loads(row["payload"])
+        lesson["id"] = row["id"]
+        lesson["plan_id"] = row["plan_id"]
+        lesson["title"] = row["title"]
+        lesson["order_index"] = row["order_index"]
+        lesson["objectives"] = json.loads(row["objectives"])
+        lesson["related_files"] = json.loads(row["related_files"])
+        lesson["estimated_minutes"] = row["estimated_minutes"]
+        lesson["status"] = row["status"]
+        return lesson
+
+    def _plan_status(self, lessons: list[dict]) -> str:
+        if not lessons:
+            return "ACTIVE"
+        if all(lesson.get("status") == "COMPLETED" for lesson in lessons):
+            return "COMPLETED"
+        if any(lesson.get("status") in {"IN_PROGRESS", "NEEDS_REVIEW", "COMPLETED"} for lesson in lessons):
+            return "IN_PROGRESS"
+        return "ACTIVE"
+
+    def _next_progress_action(self, total: int, completed: int, needs_review: int) -> str:
+        if total and completed == total:
+            return "PLAN_COMPLETED"
+        if needs_review:
+            return "REVIEW_WEAK_LESSONS"
+        return "CONTINUE_NEXT_LESSON"
 
     def _diagram_storage_id(self, project_id: str, diagram_id: str) -> str:
         return f"{project_id}:{diagram_id}"

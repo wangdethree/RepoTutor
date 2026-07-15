@@ -84,6 +84,7 @@ def get_capabilities() -> dict:
             "llm_lessons": llm_config["api_key_configured"],
             "llm_audit": True,
             "source_browser": True,
+            "learning_progress": True,
             "quiz_assessment": True,
         },
         "llm": {
@@ -367,6 +368,17 @@ def get_learning_plan(project_id: str) -> dict:
     return plan
 
 
+@router.get("/projects/{project_id}/progress")
+def get_project_progress(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    progress = repository.get_learning_progress(project_id)
+    if not progress["plan_id"]:
+        raise HTTPException(status_code=404, detail="请先生成学习路线")
+    return progress
+
+
 @router.get("/lessons/{lesson_id}")
 async def get_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
@@ -376,6 +388,7 @@ async def get_lesson(lesson_id: str) -> dict:
     analysis_payload = repository.get_analysis(project_id) if project_id else None
     if analysis_payload and "why" not in lesson:
         lesson = await lesson_generation_service.generate(from_dict(analysis_payload), lesson)
+        lesson = _preserve_lesson_progress(repository.get_lesson(lesson_id) or {}, lesson)
         repository.save_lesson_payload(lesson_id, lesson)
     return lesson
 
@@ -390,8 +403,29 @@ async def generate_lesson(lesson_id: str) -> dict:
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
     lesson_payload = await lesson_generation_service.generate(from_dict(analysis_payload), lesson)
+    lesson_payload = _preserve_lesson_progress(lesson, lesson_payload)
     repository.save_lesson_payload(lesson_id, lesson_payload)
     return lesson_payload
+
+
+@router.post("/lessons/{lesson_id}/status")
+def update_lesson_status(lesson_id: str, payload: dict) -> dict:
+    status = str(payload.get("status", "")).strip().upper()
+    allowed_statuses = {"NOT_STARTED", "IN_PROGRESS", "NEEDS_REVIEW", "COMPLETED"}
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="课程状态不合法")
+    lesson = repository.update_lesson_status(lesson_id, status)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    return lesson
+
+
+@router.post("/lessons/{lesson_id}/complete")
+def complete_lesson(lesson_id: str) -> dict:
+    lesson = repository.update_lesson_status(lesson_id, "COMPLETED")
+    if not lesson:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    return lesson
 
 
 @router.post("/lessons/{lesson_id}/quiz")
@@ -419,6 +453,12 @@ def submit_quiz(quiz_id: str, answers: dict[str, str]) -> dict:
     project_id = lesson.get("project_id") or _project_id_from_lesson_plan(quiz["lesson_id"])
     if project_id:
         repository.upsert_mastery(project_id, quiz["lesson_id"], evaluation["score"], evaluation["mastery_level"])
+        repository.update_lesson_status(
+            quiz["lesson_id"],
+            _lesson_status_from_score(evaluation["score"]),
+            score=evaluation["score"],
+            mastery_level=evaluation["mastery_level"],
+        )
     return result
 
 
@@ -437,6 +477,21 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
         if any(lesson["id"] == lesson_id for lesson in plan.get("lessons", [])):
             return project["id"]
     return None
+
+
+def _lesson_status_from_score(score: int) -> str:
+    if score >= 80:
+        return "COMPLETED"
+    if score >= 60:
+        return "IN_PROGRESS"
+    return "NEEDS_REVIEW"
+
+
+def _preserve_lesson_progress(previous: dict, generated: dict) -> dict:
+    for key in ("status", "completed_at", "updated_at", "last_score", "mastery_level"):
+        if previous.get(key) is not None:
+            generated[key] = previous[key]
+    return generated
 
 
 def _mask_secret(value: str) -> str:
