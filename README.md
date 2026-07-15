@@ -65,6 +65,14 @@ docker compose up --build
 - FastAPI: `http://localhost:8000`
 - Streamlit: `http://localhost:8501`
 
+## CI 质量门槛
+
+GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
+
+- `python -m pytest backend`
+- `python scripts/verify_offline.py`
+- `python scripts/evaluate_agents.py`
+
 ## 演示流程
 
 1. 将 `demo_repositories/fastapi_shop` 压缩成 ZIP。
