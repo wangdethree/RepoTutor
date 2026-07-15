@@ -46,6 +46,14 @@ python3 scripts/verify_offline.py
 
 该脚本会验证 ZIP 安全、AST 分析、架构图、学习路线、项目问答、测验评分等不依赖 Web 框架的能力。
 
+Agent 输出质量评测：
+
+```bash
+python3 scripts/evaluate_agents.py
+```
+
+该脚本会检查课程事实引用、源码上下文检索、项目问答引用、测验评分和 LangGraph 工作流轨迹，并把报告写入 `artifacts/reports/agent_eval.json`。
+
 ## Docker Compose
 
 ```bash
