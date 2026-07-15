@@ -17,6 +17,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.lesson_generation_service import LessonGenerationService
 from app.services.workflow_service import WorkflowService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
 
@@ -27,6 +28,7 @@ analysis_service = AnalysisService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
+lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent)
 quiz_agent = QuizAgent()
 qa_agent = QAAgent()
 assessment_agent = AssessmentAgent()
@@ -283,20 +285,20 @@ def get_learning_plan(project_id: str) -> dict:
 
 
 @router.get("/lessons/{lesson_id}")
-def get_lesson(lesson_id: str) -> dict:
+async def get_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="课程不存在")
     project_id = lesson.get("project_id") or _project_id_from_lesson_plan(lesson_id)
     analysis_payload = repository.get_analysis(project_id) if project_id else None
     if analysis_payload and "why" not in lesson:
-        lesson = teaching_agent.generate(from_dict(analysis_payload), lesson)
+        lesson = await lesson_generation_service.generate(from_dict(analysis_payload), lesson)
         repository.save_lesson_payload(lesson_id, lesson)
     return lesson
 
 
 @router.post("/lessons/{lesson_id}/generate")
-def generate_lesson(lesson_id: str) -> dict:
+async def generate_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="课程不存在")
@@ -304,7 +306,7 @@ def generate_lesson(lesson_id: str) -> dict:
     analysis_payload = repository.get_analysis(project_id) if project_id else None
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
-    lesson_payload = teaching_agent.generate(from_dict(analysis_payload), lesson)
+    lesson_payload = await lesson_generation_service.generate(from_dict(analysis_payload), lesson)
     repository.save_lesson_payload(lesson_id, lesson_payload)
     return lesson_payload
 
