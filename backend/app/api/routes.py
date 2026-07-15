@@ -18,6 +18,7 @@ from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
 from app.services.lesson_generation_service import LessonGenerationService
+from app.services.report_service import ReportService
 from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
 from app.services.workflow_service import WorkflowService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api")
 repository = SQLiteRepository()
 analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
+report_service = ReportService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
@@ -85,6 +87,7 @@ def get_capabilities() -> dict:
             "llm_audit": True,
             "source_browser": True,
             "learning_progress": True,
+            "markdown_reports": True,
             "quiz_assessment": True,
         },
         "llm": {
@@ -379,6 +382,24 @@ def get_project_progress(project_id: str) -> dict:
     return progress
 
 
+@router.get("/projects/{project_id}/reports/learning")
+def get_learning_report(project_id: str) -> dict:
+    return {"markdown": _build_learning_report(project_id)}
+
+
+@router.get("/projects/{project_id}/reports/learning.md")
+def download_learning_report(project_id: str) -> Response:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    filename = _safe_filename(project["name"]) + "-learning-report.md"
+    return Response(
+        content=_build_learning_report(project_id),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/lessons/{lesson_id}")
 async def get_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
@@ -492,6 +513,34 @@ def _preserve_lesson_progress(previous: dict, generated: dict) -> dict:
         if previous.get(key) is not None:
             generated[key] = previous[key]
     return generated
+
+
+def _build_learning_report(project_id: str) -> str:
+    project = repository.get_project(project_id)
+    profile = repository.get_profile(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    plan = repository.get_learning_plan(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not profile:
+        raise HTTPException(status_code=404, detail="学习画像不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    if not plan:
+        raise HTTPException(status_code=404, detail="请先生成学习路线")
+    return report_service.build_learning_report(
+        project=project,
+        profile=profile,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=repository.get_learning_progress(project_id),
+        diagrams=repository.get_diagrams(project_id),
+    )
+
+
+def _safe_filename(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "-" for char in value.strip())
+    return cleaned.strip("-") or "repotutor"
 
 
 def _mask_secret(value: str) -> str:
