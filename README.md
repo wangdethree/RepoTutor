@@ -44,6 +44,12 @@ streamlit run frontend/Home.py
 python3 scripts/smoke_http.py
 ```
 
+如果要走一遍 demo 项目的完整 HTTP 闭环：
+
+```bash
+python3 scripts/e2e_demo_http.py
+```
+
 ## 离线验证
 
 如果当前环境无法安装第三方依赖，可以先运行核心闭环验证：
