@@ -50,6 +50,50 @@ LLM_ENV_NAMES = {
 }
 
 
+@router.get("/health")
+def api_health() -> dict:
+    database_status = "ok"
+    error = ""
+    try:
+        repository.list_projects()
+    except Exception as exc:
+        database_status = "error"
+        error = str(exc)
+    llm_config = get_llm_settings() if database_status == "ok" else {"api_key_configured": bool(settings.llm_api_key)}
+    status = "ok" if database_status == "ok" else "degraded"
+    return {
+        "status": status,
+        "version": "0.1.0",
+        "database": database_status,
+        "llm_configured": llm_config["api_key_configured"],
+        "artifacts_dir": str(settings.artifact_dir),
+        "error": error,
+    }
+
+
+@router.get("/capabilities")
+def get_capabilities() -> dict:
+    llm_config = get_llm_settings()
+    return {
+        "features": {
+            "safe_zip_upload": True,
+            "static_analysis": True,
+            "architecture_diagrams": True,
+            "langgraph_workflow": True,
+            "deterministic_lessons": True,
+            "llm_lessons": llm_config["api_key_configured"],
+            "llm_audit": True,
+            "source_browser": True,
+            "quiz_assessment": True,
+        },
+        "llm": {
+            "configured": llm_config["api_key_configured"],
+            "model": llm_config["model"],
+            "base_url": llm_config["base_url"],
+        },
+    }
+
+
 @router.get("/settings/llm")
 def get_llm_settings() -> dict:
     stored = repository.get_app_settings(LLM_SETTING_KEYS)

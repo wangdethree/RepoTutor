@@ -39,3 +39,21 @@ def test_llm_settings_can_be_saved_without_leaking_api_key(tmp_path: Path, monke
     assert llm_client.base_url == "https://example.com/v1"
     assert llm_client.model == "demo-model"
     assert llm_client.temperature == 0.3
+
+
+def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypatch) -> None:
+    test_repository = SQLiteRepository(f"sqlite:///{tmp_path / 'health.db'}")
+    monkeypatch.setattr(routes, "repository", test_repository)
+    client = TestClient(app)
+
+    health_response = client.get("/api/health")
+    capabilities_response = client.get("/api/capabilities")
+
+    assert health_response.status_code == 200
+    assert health_response.json()["status"] == "ok"
+    assert health_response.json()["database"] == "ok"
+    assert capabilities_response.status_code == 200
+    capabilities = capabilities_response.json()
+    assert capabilities["features"]["static_analysis"] is True
+    assert capabilities["features"]["source_browser"] is True
+    assert capabilities["llm"]["configured"] is False

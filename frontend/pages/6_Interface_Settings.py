@@ -12,6 +12,12 @@ st.set_page_config(page_title="接口配置", page_icon="RT", layout="wide")
 st.title("接口配置")
 
 try:
+    health_response = requests.get(f"{API_URL}/api/health", timeout=20)
+    health_response.raise_for_status()
+    health = health_response.json()
+    capabilities_response = requests.get(f"{API_URL}/api/capabilities", timeout=20)
+    capabilities_response.raise_for_status()
+    capabilities = capabilities_response.json()
     config_response = requests.get(f"{API_URL}/api/settings/llm", timeout=20)
     config_response.raise_for_status()
     config = config_response.json()
@@ -19,9 +25,17 @@ except requests.RequestException as exc:
     st.error(f"后端接口不可用：{exc}")
     st.stop()
 
-left, right = st.columns(2)
-left.metric("模型接口", "已配置" if config["api_key_configured"] else "未配置")
-right.metric("当前模式", "LLM 增强" if config["api_key_configured"] else "确定性离线规则")
+metrics = st.columns(4)
+metrics[0].metric("后端状态", health["status"])
+metrics[1].metric("数据库", health["database"])
+metrics[2].metric("模型接口", "已配置" if config["api_key_configured"] else "未配置")
+metrics[3].metric("当前模式", "LLM 增强" if config["api_key_configured"] else "确定性离线规则")
+
+st.subheader("能力清单")
+st.dataframe(
+    [{"能力": name, "状态": "启用" if enabled else "未启用"} for name, enabled in capabilities["features"].items()],
+    use_container_width=True,
+)
 
 with st.form("llm_settings_form"):
     base_url = st.text_input("Base URL", value=config["base_url"])
@@ -72,4 +86,3 @@ st.dataframe(
     ],
     use_container_width=True,
 )
-

@@ -14,6 +14,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 课程生成支持可选 LLM 增强，Prompt 会注入受控源码片段，模型输出校验失败时自动回退到确定性课程。
 - 记录 LLM 调用审计：Prompt、响应、状态、耗时和失败原因，方便排查幻觉与回退。
 - 安全源码浏览：只允许查看静态分析确认过的项目文件，便于对照课程和问答行号。
+- 后端健康检查与能力清单，便于本地调试和部署探活。
 - 生成测验、评分并更新知识点掌握度。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。
@@ -88,6 +89,8 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 ## API 摘要
 
 - `POST /api/projects/upload`
+- `GET /api/health`
+- `GET /api/capabilities`
 - `GET /api/projects`
 - `GET /api/projects/{project_id}`
 - `POST /api/projects/{project_id}/analyze`
