@@ -57,6 +57,32 @@ def test_quiz_submission_updates_lesson_progress(tmp_path: Path, monkeypatch) ->
     assert progress["completed_lessons"] == 1
 
 
+def test_quiz_results_are_listed_for_review(tmp_path: Path, monkeypatch) -> None:
+    repository, project_id, plan = _prepared_repository(tmp_path)
+    lesson = plan["lessons"][0]
+    analysis_payload = repository.get_analysis(project_id)
+    assert analysis_payload is not None
+    quiz = QuizAgent().generate(AnalysisService().analyze(project_id, Path(analysis_payload["root_path"])), lesson)
+    repository.save_quiz(quiz)
+    monkeypatch.setattr(routes, "repository", repository)
+    client = TestClient(app)
+    answers = {question["id"]: "" for question in quiz["questions"]}
+
+    submit_response = client.post(f"/api/quizzes/{quiz['id']}/submit", json=answers)
+    project_response = client.get(f"/api/projects/{project_id}/quiz-results")
+    lesson_response = client.get(f"/api/lessons/{lesson['id']}/quiz-results")
+
+    assert submit_response.status_code == 200
+    assert project_response.status_code == 200
+    assert lesson_response.status_code == 200
+    project_results = project_response.json()["quiz_results"]
+    lesson_results = lesson_response.json()["quiz_results"]
+    assert len(project_results) == 1
+    assert len(lesson_results) == 1
+    assert project_results[0]["lesson_title"] == lesson["title"]
+    assert project_results[0]["missing_points"]
+
+
 def test_lesson_status_api_rejects_invalid_status(tmp_path: Path, monkeypatch) -> None:
     repository, _, plan = _prepared_repository(tmp_path)
     monkeypatch.setattr(routes, "repository", repository)

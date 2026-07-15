@@ -456,6 +456,45 @@ class SQLiteRepository:
             )
         return {"id": result_id, **evaluation}
 
+    def list_quiz_results_for_project(self, project_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    quiz_results.*,
+                    quizzes.lesson_id,
+                    lessons.title AS lesson_title,
+                    lessons.order_index AS lesson_order
+                FROM quiz_results
+                JOIN quizzes ON quiz_results.quiz_id = quizzes.id
+                JOIN lessons ON quizzes.lesson_id = lessons.id
+                JOIN learning_plans ON lessons.plan_id = learning_plans.id
+                WHERE learning_plans.project_id = ?
+                ORDER BY quiz_results.created_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        return [self._quiz_result_from_row(row) for row in rows]
+
+    def list_quiz_results_for_lesson(self, lesson_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    quiz_results.*,
+                    quizzes.lesson_id,
+                    lessons.title AS lesson_title,
+                    lessons.order_index AS lesson_order
+                FROM quiz_results
+                JOIN quizzes ON quiz_results.quiz_id = quizzes.id
+                JOIN lessons ON quizzes.lesson_id = lessons.id
+                WHERE quizzes.lesson_id = ?
+                ORDER BY quiz_results.created_at DESC
+                """,
+                (lesson_id,),
+            ).fetchall()
+        return [self._quiz_result_from_row(row) for row in rows]
+
     def upsert_mastery(self, project_id: str, knowledge_point: str, score: float, status: str) -> None:
         now = self._now()
         record_id = f"{project_id}:{knowledge_point}"
@@ -675,6 +714,13 @@ class SQLiteRepository:
         lesson["estimated_minutes"] = row["estimated_minutes"]
         lesson["status"] = row["status"]
         return lesson
+
+    def _quiz_result_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        result = self._row_to_dict(row)
+        result["correct_points"] = json.loads(result["correct_points"])
+        result["missing_points"] = json.loads(result["missing_points"])
+        result["misconceptions"] = json.loads(result["misconceptions"])
+        return result
 
     def _plan_status(self, lessons: list[dict]) -> str:
         if not lessons:
