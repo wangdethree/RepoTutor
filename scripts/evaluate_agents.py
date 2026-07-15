@@ -15,6 +15,7 @@ from app.agents.assessment_agent import AssessmentAgent
 from app.agents.curriculum_agent import CurriculumAgent
 from app.agents.qa_agent import QAAgent
 from app.agents.quiz_agent import QuizAgent
+from app.agents.remediation_agent import RemediationAgent
 from app.agents.teaching_agent import TeachingAgent
 from app.llm.context import LessonCodeContextBuilder
 from app.repositories.sqlite_repository import SQLiteRepository
@@ -111,6 +112,18 @@ def main() -> None:
     }
     result = AssessmentAgent().evaluate(quiz, answers)
     _record(cases, "quiz_assessment_gate", result["score"] >= 80, f"score={result['score']}")
+
+    low_result = AssessmentAgent().evaluate(quiz, {question["id"]: "" for question in quiz["questions"]})
+    remediation = RemediationAgent().generate(analysis, lesson, {"id": "agent-eval-result", **low_result})
+    _record(
+        cases,
+        "remediation_gate",
+        low_result["recommended_action"] == "REMEDIAL_LESSON"
+        and remediation["fact_checked"] is True
+        and _references_are_valid(analysis, remediation["code_locations"])
+        and bool(remediation["retry_quiz"]["questions"]),
+        f"score={low_result['score']} retry_questions={len(remediation['retry_quiz']['questions'])}",
+    )
 
     _evaluate_workflow_trace(cases, repo_root, profile)
 

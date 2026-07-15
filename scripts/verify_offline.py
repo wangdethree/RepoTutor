@@ -14,6 +14,7 @@ from app.agents.assessment_agent import AssessmentAgent
 from app.agents.curriculum_agent import CurriculumAgent
 from app.agents.qa_agent import QAAgent
 from app.agents.quiz_agent import QuizAgent
+from app.agents.remediation_agent import RemediationAgent
 from app.diagrams.architecture_builder import build_all_diagrams
 from app.services.analysis_service import AnalysisService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
@@ -55,6 +56,11 @@ def main() -> None:
     }
     result = AssessmentAgent().evaluate(quiz, answers)
     assert result["score"] >= 80
+
+    low_result = AssessmentAgent().evaluate(quiz, {question["id"]: "" for question in quiz["questions"]})
+    remediation = RemediationAgent().generate(analysis, plan["lessons"][0], {"id": "offline-result", **low_result})
+    assert remediation["fact_checked"] is True
+    assert remediation["retry_quiz"]["questions"]
 
     print("offline verification passed")
     print(f"routes={len(analysis.routes)} models={len(analysis.models)} diagrams={len(diagrams)} lessons={plan['total_lessons']}")

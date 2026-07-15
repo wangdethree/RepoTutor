@@ -57,8 +57,18 @@ if weak_results:
             if result["misconceptions"]:
                 st.write("可能误区：" + "；".join(result["misconceptions"]))
             st.write("建议：" + result["recommended_action"])
-            if st.button("回到课程", key=f"review-lesson-{result['id']}"):
+            action_cols = st.columns(2)
+            if action_cols[0].button("回到课程", key=f"review-lesson-{result['id']}"):
                 st.session_state["lesson_id"] = result["lesson_id"]
+                st.switch_page("pages/4_Lesson_Quiz.py")
+            if result["score"] < 60 and action_cols[1].button("补充讲解", key=f"remedial-{result['id']}"):
+                remediation_response = requests.post(
+                    f"{API_URL}/api/quiz-results/{result['id']}/remediation",
+                    timeout=60,
+                )
+                remediation_response.raise_for_status()
+                st.session_state["lesson_id"] = result["lesson_id"]
+                st.session_state[f"remediation_{result['lesson_id']}"] = remediation_response.json()
                 st.switch_page("pages/4_Lesson_Quiz.py")
 
 st.subheader("全部测验记录")

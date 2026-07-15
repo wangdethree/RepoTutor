@@ -18,6 +18,64 @@ def _status_label(status: str) -> str:
     }.get(status, status)
 
 
+def _render_remediation(remediation: dict, key_prefix: str) -> None:
+    st.divider()
+    st.header("补充讲解")
+    st.warning(f"{remediation['title']}，触发分数：{remediation['trigger_score']}")
+
+    st.subheader("薄弱点")
+    for point in remediation["focus_points"]:
+        st.write(f"- {point}")
+
+    st.subheader("补充说明")
+    for item in remediation["explanation"]:
+        st.write(f"- {item}")
+
+    st.subheader("复习步骤")
+    for item in remediation["practice_steps"]:
+        st.write(f"- {item}")
+
+    st.subheader("补充源码证据")
+    for index, location in enumerate(remediation["code_locations"]):
+        cols = st.columns([3, 1, 2, 1])
+        cols[0].code(f"{location['file']}:{location['line']}")
+        cols[1].write(location["kind"])
+        cols[2].write(location["name"])
+        if cols[3].button("查看源码", key=f"{key_prefix}-remedial-source-{index}"):
+            st.session_state["source_file_path"] = location["file"]
+            st.session_state["source_line"] = location["line"]
+            st.switch_page("pages/9_Source_Browser.py")
+
+    if remediation.get("call_chains"):
+        st.subheader("重新梳理调用链")
+        for chain in remediation["call_chains"]:
+            st.write(" -> ".join(step["symbol"] for step in chain["steps"]))
+
+    st.subheader("二次测验")
+    retry_quiz = remediation["retry_quiz"]
+    retry_answers: dict[str, str] = {}
+    for question in retry_quiz["questions"]:
+        st.markdown(f"**{question['type']}**")
+        retry_answers[question["id"]] = st.text_area(
+            question["prompt"],
+            key=f"{key_prefix}-{retry_quiz['id']}-{question['id']}",
+        )
+    if st.button("提交二次测验", type="primary", key=f"{key_prefix}-submit-retry"):
+        retry_response = requests.post(
+            f"{API_URL}/api/quizzes/{retry_quiz['id']}/submit",
+            json=retry_answers,
+            timeout=60,
+        )
+        retry_response.raise_for_status()
+        retry_result = retry_response.json()
+        st.metric("二次测验得分", retry_result["score"])
+        st.write(retry_result["feedback"])
+        if retry_result["score"] >= 80:
+            st.success("二次测验已通过，本节会进入完成状态。")
+        else:
+            st.info("继续对照补充讲解和源码证据复习后再测一次。")
+
+
 st.set_page_config(page_title="课程与测验", page_icon="RT", layout="wide")
 st.title("课程与测验")
 
@@ -36,6 +94,7 @@ selected_title = st.selectbox(
 )
 lesson_id = lesson_options[selected_title]
 st.session_state["lesson_id"] = lesson_id
+remediation_key = f"remediation_{lesson_id}"
 
 lesson = requests.post(f"{API_URL}/api/lessons/{lesson_id}/generate", timeout=60).json()
 if lesson.get("status") == "NOT_STARTED":
@@ -114,3 +173,9 @@ if st.button("提交测验", type="primary"):
         st.info("本节保持学习中，建议补齐缺失点后再测一次。")
     else:
         st.warning("本节已标记为需复习。")
+        remediation_response = requests.post(f"{API_URL}/api/quiz-results/{result['id']}/remediation", timeout=60)
+        remediation_response.raise_for_status()
+        st.session_state[remediation_key] = remediation_response.json()
+
+if st.session_state.get(remediation_key):
+    _render_remediation(st.session_state[remediation_key], remediation_key)

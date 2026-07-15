@@ -456,6 +456,26 @@ class SQLiteRepository:
             )
         return {"id": result_id, **evaluation}
 
+    def get_quiz_result(self, result_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    quiz_results.*,
+                    quizzes.lesson_id,
+                    lessons.title AS lesson_title,
+                    lessons.order_index AS lesson_order,
+                    learning_plans.project_id AS project_id
+                FROM quiz_results
+                JOIN quizzes ON quiz_results.quiz_id = quizzes.id
+                JOIN lessons ON quizzes.lesson_id = lessons.id
+                JOIN learning_plans ON lessons.plan_id = learning_plans.id
+                WHERE quiz_results.id = ?
+                """,
+                (result_id,),
+            ).fetchone()
+        return self._quiz_result_from_row(row) if row else None
+
     def list_quiz_results_for_project(self, project_id: str) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -464,7 +484,8 @@ class SQLiteRepository:
                     quiz_results.*,
                     quizzes.lesson_id,
                     lessons.title AS lesson_title,
-                    lessons.order_index AS lesson_order
+                    lessons.order_index AS lesson_order,
+                    learning_plans.project_id AS project_id
                 FROM quiz_results
                 JOIN quizzes ON quiz_results.quiz_id = quizzes.id
                 JOIN lessons ON quizzes.lesson_id = lessons.id
@@ -484,10 +505,12 @@ class SQLiteRepository:
                     quiz_results.*,
                     quizzes.lesson_id,
                     lessons.title AS lesson_title,
-                    lessons.order_index AS lesson_order
+                    lessons.order_index AS lesson_order,
+                    learning_plans.project_id AS project_id
                 FROM quiz_results
                 JOIN quizzes ON quiz_results.quiz_id = quizzes.id
                 JOIN lessons ON quizzes.lesson_id = lessons.id
+                JOIN learning_plans ON lessons.plan_id = learning_plans.id
                 WHERE quizzes.lesson_id = ?
                 ORDER BY quiz_results.created_at DESC
                 """,

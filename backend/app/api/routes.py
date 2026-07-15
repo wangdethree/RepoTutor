@@ -12,6 +12,7 @@ from app.agents.curriculum_agent import CurriculumAgent
 from app.agents.interview_agent import InterviewAgent
 from app.agents.quiz_agent import QuizAgent
 from app.agents.qa_agent import QAAgent
+from app.agents.remediation_agent import RemediationAgent
 from app.agents.teaching_agent import TeachingAgent
 from app.core.config import settings
 from app.diagrams.architecture_builder import build_all_diagrams
@@ -40,6 +41,7 @@ qa_agent = QAAgent()
 qa_generation_service = QAGenerationService(qa_agent=qa_agent, repository=repository)
 assessment_agent = AssessmentAgent()
 interview_agent = InterviewAgent()
+remediation_agent = RemediationAgent()
 
 LLM_SETTING_KEYS = [
     "llm_api_key",
@@ -96,6 +98,7 @@ def get_capabilities() -> dict:
             "review_center": True,
             "quiz_assessment": True,
             "interview_prep": True,
+            "remedial_lessons": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -483,6 +486,24 @@ def list_lesson_quiz_results(lesson_id: str) -> dict:
     if not lesson:
         raise HTTPException(status_code=404, detail="课程不存在")
     return {"quiz_results": repository.list_quiz_results_for_lesson(lesson_id)}
+
+
+@router.post("/quiz-results/{result_id}/remediation")
+def generate_remediation(result_id: str) -> dict:
+    quiz_result = repository.get_quiz_result(result_id)
+    if not quiz_result:
+        raise HTTPException(status_code=404, detail="测验结果不存在")
+    if quiz_result["score"] >= 60:
+        raise HTTPException(status_code=400, detail="只有低于 60 分的结果需要生成补充讲解")
+    lesson = repository.get_lesson(quiz_result["lesson_id"])
+    if not lesson:
+        raise HTTPException(status_code=404, detail="课程不存在")
+    analysis_payload = repository.get_analysis(quiz_result["project_id"])
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    remediation = remediation_agent.generate(from_dict(analysis_payload), lesson, quiz_result)
+    repository.save_quiz(remediation["retry_quiz"])
+    return remediation
 
 
 @router.post("/lessons/{lesson_id}/quiz")

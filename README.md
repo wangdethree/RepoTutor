@@ -18,6 +18,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 安全源码浏览：只允许查看静态分析确认过的项目文件，便于对照课程和问答行号。
 - 后端健康检查与能力清单，便于本地调试和部署探活。
 - 生成测验、评分并更新课程状态、学习进度和知识点掌握度。
+- 低分测验会生成补充讲解、源码复习步骤和二次测验，补齐动态补课闭环。
 - 复习中心汇总测验历史、缺失点、误区和回到课程的复习入口。
 - 面试准备模块生成项目介绍、架构讲述、高频问答、风险提示和源码证据。
 - 生成 Markdown 学习报告，汇总项目事实、学习路线、进度和架构图清单。
@@ -112,9 +113,10 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 7. 配置模型接口后，可在 LLM 调用审计页面查看课程增强的提示词、响应和校验结果。
 8. 进入源码浏览页面，按层级或关键词定位课程引用的文件。
 9. 进入学习进度页面，查看完成率、待复习课程和下一节推荐。
-10. 进入复习中心，查看测验历史、缺失点和误区。
-11. 进入面试准备页面，按项目介绍、架构讲述和高频问答准备项目讲解。
-12. 进入报告导出页面，预览并下载 Markdown 学习报告。
+10. 如果测验低于 60 分，查看自动生成的补充讲解并完成二次测验。
+11. 进入复习中心，查看测验历史、缺失点和误区。
+12. 进入面试准备页面，按项目介绍、架构讲述和高频问答准备项目讲解。
+13. 进入报告导出页面，预览并下载 Markdown 学习报告。
 
 ## API 摘要
 
@@ -150,6 +152,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/lessons/{lesson_id}/status`
 - `POST /api/lessons/{lesson_id}/complete`
 - `GET /api/lessons/{lesson_id}/quiz-results`
+- `POST /api/quiz-results/{result_id}/remediation`
 - `POST /api/lessons/{lesson_id}/quiz`
 - `POST /api/quizzes/{quiz_id}/submit`
 - `GET /api/projects/{project_id}/mastery`
