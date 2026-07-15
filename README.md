@@ -67,6 +67,8 @@ docker compose up --build
 - FastAPI: `http://localhost:8000`
 - Streamlit: `http://localhost:8501`
 
+Docker Compose 会用 `/api/health` 检查后端健康状态，前端会等待后端 healthy 后再启动。
+
 ## CI 质量门槛
 
 GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：

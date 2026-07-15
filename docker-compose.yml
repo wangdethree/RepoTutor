@@ -11,6 +11,16 @@ services:
     volumes:
       - repotutor-data:/app/data
       - ./artifacts:/app/artifacts
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5).read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
@@ -21,8 +31,8 @@ services:
     ports:
       - "8501:8501"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   repotutor-data:
-
