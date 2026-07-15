@@ -13,6 +13,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 对课程输出做事实校验，拦截不存在的文件引用和越界行号。
 - 课程生成支持可选 LLM 增强，Prompt 会注入受控源码片段，模型输出校验失败时自动回退到确定性课程。
 - 记录 LLM 调用审计：Prompt、响应、状态、耗时和失败原因，方便排查幻觉与回退。
+- 安全源码浏览：只允许查看静态分析确认过的项目文件，便于对照课程和问答行号。
 - 生成测验、评分并更新知识点掌握度。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。
@@ -82,6 +83,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 5. 查看 Agent 运行记录，确认分析、架构图和学习路线节点已完成。
 6. 进入项目概览、架构图、学习路线和课程测验页面。
 7. 配置模型接口后，可在 LLM 调用审计页面查看课程增强的提示词、响应和校验结果。
+8. 进入源码浏览页面，按层级或关键词定位课程引用的文件。
 
 ## API 摘要
 
@@ -90,6 +92,8 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `GET /api/projects/{project_id}`
 - `POST /api/projects/{project_id}/analyze`
 - `GET /api/projects/{project_id}/analysis`
+- `GET /api/projects/{project_id}/source-files`
+- `GET /api/projects/{project_id}/source-files/{file_path}`
 - `POST /api/projects/{project_id}/diagrams/generate`
 - `GET /api/projects/{project_id}/diagrams`
 - `GET /api/projects/{project_id}/diagrams/{diagram_id}/download`

@@ -18,6 +18,7 @@ from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
 from app.services.lesson_generation_service import LessonGenerationService
+from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
 from app.services.workflow_service import WorkflowService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
 
@@ -25,6 +26,7 @@ from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
 router = APIRouter(prefix="/api")
 repository = SQLiteRepository()
 analysis_service = AnalysisService()
+source_browser_service = SourceBrowserService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
@@ -185,6 +187,27 @@ def get_analysis(project_id: str) -> dict:
     if not payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
     return payload
+
+
+@router.get("/projects/{project_id}/source-files")
+def list_source_files(project_id: str) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    return {"files": source_browser_service.list_files(from_dict(analysis_payload))}
+
+
+@router.get("/projects/{project_id}/source-files/{file_path:path}")
+def get_source_file(project_id: str, file_path: str) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    try:
+        return source_browser_service.read_file(from_dict(analysis_payload), file_path)
+    except SourceFileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SourceFileAccessError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/projects/{project_id}/diagrams/generate")
