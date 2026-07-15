@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Response, Uploa
 
 from app.agents.assessment_agent import AssessmentAgent
 from app.agents.curriculum_agent import CurriculumAgent
+from app.agents.interview_agent import InterviewAgent
 from app.agents.quiz_agent import QuizAgent
 from app.agents.qa_agent import QAAgent
 from app.agents.teaching_agent import TeachingAgent
@@ -38,6 +39,7 @@ quiz_agent = QuizAgent()
 qa_agent = QAAgent()
 qa_generation_service = QAGenerationService(qa_agent=qa_agent, repository=repository)
 assessment_agent = AssessmentAgent()
+interview_agent = InterviewAgent()
 
 LLM_SETTING_KEYS = [
     "llm_api_key",
@@ -93,6 +95,7 @@ def get_capabilities() -> dict:
             "markdown_reports": True,
             "review_center": True,
             "quiz_assessment": True,
+            "interview_prep": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -392,6 +395,19 @@ def list_project_quiz_results(project_id: str) -> dict:
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     return {"quiz_results": repository.list_quiz_results_for_project(project_id)}
+
+
+@router.get("/projects/{project_id}/interview-kit")
+def get_interview_kit(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    profile = repository.get_profile(project_id) or {}
+    progress = repository.get_learning_progress(project_id)
+    return interview_agent.generate(from_dict(analysis_payload), profile, progress)
 
 
 @router.get("/projects/{project_id}/reports/learning")
