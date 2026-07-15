@@ -102,6 +102,11 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `python scripts/evaluate_agents.py`
 - `python scripts/e2e_demo_inprocess.py`
 
+## 版本文档
+
+- [V1.0.0 发布说明](docs/v1_release_notes.md)
+- [后续路线图](docs/roadmap.md)
+
 ## 演示流程
 
 1. 将 `demo_repositories/fastapi_shop` 压缩成 ZIP。
