@@ -44,10 +44,12 @@ with left:
         st.warning("没有匹配的文件。")
         st.stop()
 
-    options = {
-        f"{file['path']} · {file['module_type']} · {file['line_count']} 行": file["path"] for file in filtered
-    }
-    selected_label = st.selectbox("文件", list(options.keys()))
+    options = {f"{file['path']} · {file['module_type']} · {file['line_count']} 行": file["path"] for file in filtered}
+    option_labels = list(options.keys())
+    option_paths = list(options.values())
+    target_path = st.session_state.get("source_file_path")
+    default_index = option_paths.index(target_path) if target_path in option_paths else 0
+    selected_label = st.selectbox("文件", option_labels, index=default_index)
     selected_path = options[selected_label]
 
 with right:
@@ -60,6 +62,7 @@ with right:
         st.stop()
 
     file_meta = detail["file"]
+    target_line = st.session_state.get("source_line") if selected_path == st.session_state.get("source_file_path") else None
     metrics = st.columns(4)
     metrics[0].metric("层级", file_meta["module_type"])
     metrics[1].metric("行数", file_meta["line_count"])
@@ -67,4 +70,12 @@ with right:
     metrics[3].metric("被依赖次数", file_meta["imported_by"])
 
     st.caption(file_meta["summary"])
+    if target_line:
+        line_number = int(target_line)
+        focus_lines = detail["lines"][max(0, line_number - 4) : line_number + 3]
+        st.info(f"当前引用位置：{selected_path}:{line_number}")
+        st.code(
+            "\n".join(f"{line['number']}: {line['text']}" for line in focus_lines),
+            language="python" if selected_path.endswith(".py") else "text",
+        )
     st.code(detail["content"], language="python" if selected_path.endswith(".py") else "text", line_numbers=True)

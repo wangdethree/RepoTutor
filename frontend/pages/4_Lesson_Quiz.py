@@ -35,7 +35,15 @@ st.write(lesson["why"])
 st.subheader("学习目标")
 st.write("；".join(lesson["objectives"]))
 st.subheader("核心代码位置")
-st.dataframe(lesson["core_code_locations"], use_container_width=True)
+for index, location in enumerate(lesson["core_code_locations"]):
+    cols = st.columns([3, 1, 2, 1])
+    cols[0].code(f"{location['file']}:{location['line']}")
+    cols[1].write(location["kind"])
+    cols[2].write(location["name"])
+    if cols[3].button("查看源码", key=f"lesson-source-{index}"):
+        st.session_state["source_file_path"] = location["file"]
+        st.session_state["source_line"] = location["line"]
+        st.switch_page("pages/9_Source_Browser.py")
 st.subheader("关键讲解")
 for point in lesson["explanation"]:
     st.write(f"- {point}")
@@ -62,4 +70,3 @@ if st.button("提交测验", type="primary"):
     st.write("推荐动作：" + result["recommended_action"])
     if result["missing_points"]:
         st.warning("缺失点：" + "；".join(result["missing_points"]))
-

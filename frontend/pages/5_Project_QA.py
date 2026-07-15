@@ -37,5 +37,12 @@ if st.button("提问", type="primary", disabled=not question.strip()):
     for inference in result["inferences"]:
         st.write(f"- {inference}")
     st.subheader("引用位置")
-    st.dataframe(result["references"], use_container_width=True)
-
+    for index, reference in enumerate(result["references"]):
+        cols = st.columns([3, 1, 2, 1])
+        cols[0].code(f"{reference['file']}:{reference['line']}")
+        cols[1].write(reference["kind"])
+        cols[2].write(reference["name"])
+        if cols[3].button("查看源码", key=f"qa-source-{index}"):
+            st.session_state["source_file_path"] = reference["file"]
+            st.session_state["source_line"] = reference["line"]
+            st.switch_page("pages/9_Source_Browser.py")
