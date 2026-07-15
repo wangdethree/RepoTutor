@@ -10,6 +10,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - Mermaid / PlantUML 架构图源码生成：分层架构、组件图、类图、ER 图、时序图、部署图、依赖图。
 - 根据用户画像生成 5 到 10 节学习路线。
 - 生成引用真实文件、函数、类和行号的课程。
+- 对课程输出做事实校验，拦截不存在的文件引用和越界行号。
 - 生成测验、评分并更新知识点掌握度。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
 - FastAPI 后端、Streamlit 前端、SQLite 持久化、Docker Compose 和 pytest 测试。

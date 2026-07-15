@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.llm.validators import LessonOutputValidator
 from app.schemas.analysis import AnalysisResult
 
 
@@ -9,7 +10,7 @@ class TeachingAgent:
     def generate(self, analysis: AnalysisResult, lesson: dict) -> dict:
         related_files = lesson.get("related_files") or analysis.summary.core_modules[:4]
         references = self._references_for_files(analysis, related_files)
-        return {
+        payload = {
             "id": lesson["id"],
             "title": lesson["title"],
             "objectives": lesson["objectives"],
@@ -22,6 +23,7 @@ class TeachingAgent:
             "summary": f"本节完成后，应能围绕 {', '.join(related_files[:3])} 讲清它们在项目中的位置。",
             "quiz_entry": f"/api/lessons/{lesson['id']}/quiz",
         }
+        return LessonOutputValidator(analysis).validate(payload)
 
     def _references_for_files(self, analysis: AnalysisResult, files: list[str]) -> list[dict]:
         references: list[dict] = []
@@ -93,4 +95,3 @@ class TeachingAgent:
         if "数据库" in title:
             common.append("字段默认值、外键和 relationship 需要一起看，不能只看类名")
         return common
-
