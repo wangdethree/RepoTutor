@@ -33,16 +33,44 @@ except requests.RequestException as exc:
     st.error(f"读取测验记录失败：{exc}")
     st.stop()
 
-if not results:
-    st.info("当前项目还没有测验记录。完成一次课程测验后，这里会生成复习材料。")
+try:
+    practice_response = requests.get(
+        f"{API_URL}/api/projects/{project_id}/practice-progress",
+        timeout=30,
+    )
+    practice_response.raise_for_status()
+    practice_progress = practice_response.json()
+except requests.RequestException as exc:
+    practice_progress = None
+    st.warning(f"读取动手任务进度失败：{exc}")
+
+pending_practice_lessons = [
+    lesson for lesson in (practice_progress or {}).get("lessons", []) if lesson["pending_tasks"]
+]
+if not results and not pending_practice_lessons:
+    st.info("当前项目还没有测验记录或待练习任务。完成课程测验或动手任务后，这里会生成复习材料。")
     st.stop()
 
 weak_results = [result for result in results if result["score"] < 80]
-metrics = st.columns(4)
+metrics = st.columns(5)
 metrics[0].metric("测验次数", len(results))
 metrics[1].metric("待复习", len(weak_results))
-metrics[2].metric("最高分", max(result["score"] for result in results))
-metrics[3].metric("最近得分", results[0]["score"])
+metrics[2].metric("待练任务", practice_progress["remaining_tasks"] if practice_progress else 0)
+metrics[3].metric("最高分", max(result["score"] for result in results) if results else "-")
+metrics[4].metric("最近得分", results[0]["score"] if results else "-")
+
+if pending_practice_lessons:
+    st.subheader("待完成动手任务")
+    for lesson in pending_practice_lessons[:5]:
+        with st.container(border=True):
+            cols = st.columns([4, 1, 1])
+            cols[0].markdown(f"**{lesson['order_index']}. {lesson['lesson_title']}**")
+            cols[1].metric("任务", f"{lesson['completed_task_count']}/{lesson['task_count']}")
+            cols[2].metric("完成率", f"{lesson['completion_rate']}%")
+            st.warning("待练习：" + "；".join(lesson["pending_tasks"][:3]))
+            if st.button("去练习", key=f"practice-review-{lesson['lesson_id']}"):
+                st.session_state["lesson_id"] = lesson["lesson_id"]
+                st.switch_page("pages/4_Lesson_Quiz.py")
 
 if weak_results:
     st.subheader("优先复习")
@@ -74,17 +102,18 @@ if weak_results:
                 st.session_state[f"remediation_{result['lesson_id']}"] = remediation_response.json()
                 st.switch_page("pages/4_Lesson_Quiz.py")
 
-st.subheader("全部测验记录")
-st.dataframe(
-    [
-        {
-            "时间": result["created_at"],
-            "课程": result["lesson_title"],
-            "得分": result["score"],
-            "掌握度": _mastery_label(result["mastery_level"]),
-            "建议动作": result["recommended_action"],
-        }
-        for result in results
-    ],
-    use_container_width=True,
-)
+if results:
+    st.subheader("全部测验记录")
+    st.dataframe(
+        [
+            {
+                "时间": result["created_at"],
+                "课程": result["lesson_title"],
+                "得分": result["score"],
+                "掌握度": _mastery_label(result["mastery_level"]),
+                "建议动作": result["recommended_action"],
+            }
+            for result in results
+        ],
+        use_container_width=True,
+    )
