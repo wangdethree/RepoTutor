@@ -9,6 +9,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - Python AST 分析文件、类、函数、导入关系、FastAPI 路由、SQLAlchemy 模型和 Pydantic Schema。
 - 函数级调用关系解析，可生成从路由处理函数到 Service/Repository 的真实调用链。
 - 可解释文件重要度评分与文件级依赖图。
+- 提供结构化依赖图数据 API，前端可按模块类型、重要度、核心文件和关键词筛选节点与依赖边。
 - Mermaid / PlantUML 架构图源码生成：分层架构、组件图、类图、ER 图、时序图、部署图、依赖图。
 - 根据用户画像生成 5 到 10 节学习路线。
 - 生成引用真实文件、函数、类和行号的课程。
@@ -140,6 +141,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/projects/{project_id}/diagrams/generate`
 - `GET /api/projects/{project_id}/diagrams`
 - `GET /api/projects/{project_id}/diagrams/{diagram_id}/download`
+- `GET /api/projects/{project_id}/dependency-graph`
 - `POST /api/projects/{project_id}/ask`
 - `POST /api/projects/{project_id}/agent-runs/onboarding`
 - `GET /api/projects/{project_id}/agent-runs`

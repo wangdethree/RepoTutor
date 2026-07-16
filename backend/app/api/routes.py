@@ -19,6 +19,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.dependency_graph_service import DependencyGraphService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.qa_generation_service import QAGenerationService
@@ -33,6 +34,7 @@ repository = SQLiteRepository()
 analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
 report_service = ReportService()
+dependency_graph_service = DependencyGraphService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
@@ -90,6 +92,7 @@ def get_capabilities() -> dict:
             "github_url_import": True,
             "static_analysis": True,
             "architecture_diagrams": True,
+            "dependency_graph_data": True,
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
@@ -336,6 +339,14 @@ def download_diagram(project_id: str, diagram_id: str) -> Response:
                 headers={"Content-Disposition": f'attachment; filename="{diagram_id}.{extension}"'},
             )
     raise HTTPException(status_code=404, detail="图表不存在")
+
+
+@router.get("/projects/{project_id}/dependency-graph")
+def get_dependency_graph(project_id: str) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    return dependency_graph_service.build(from_dict(analysis_payload))
 
 
 @router.post("/projects/{project_id}/ask")
