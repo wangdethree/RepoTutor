@@ -29,6 +29,7 @@ from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
 from app.services.practice_task_service import PracticeTaskService
+from app.services.project_dashboard_service import ProjectDashboardService
 from app.services.project_improvement_service import ProjectImprovementService
 from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
@@ -48,6 +49,7 @@ dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
 practice_task_service = PracticeTaskService()
+project_dashboard_service = ProjectDashboardService()
 project_improvement_service = ProjectImprovementService()
 interview_readiness_service = InterviewReadinessService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
@@ -138,6 +140,7 @@ def get_capabilities() -> dict:
             "practice_tasks": True,
             "practice_task_source_links": True,
             "practice_progress": True,
+            "project_dashboard": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -501,6 +504,52 @@ def get_project_progress(project_id: str) -> dict:
     if not progress["plan_id"]:
         raise HTTPException(status_code=404, detail="请先生成学习路线")
     return progress
+
+
+@router.get("/projects/{project_id}/dashboard")
+def get_project_dashboard(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    plan = repository.get_learning_plan(project_id)
+    progress = repository.get_learning_progress(project_id)
+    diagrams = repository.get_diagrams(project_id) if analysis_payload else []
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
+    interview_readiness = _optional_interview_readiness(project_id, analysis_payload, plan, progress)
+    demo_readiness = demo_readiness_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        diagrams=diagrams,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+        interview_readiness=interview_readiness,
+    )
+    improvement_suggestions = (
+        project_improvement_service.build(
+            project=project,
+            analysis=analysis_payload,
+            plan=plan,
+            progress=progress,
+            practice_progress=practice_progress,
+            quiz_results=quiz_results,
+        )
+        if analysis_payload
+        else {"priority_counts": {"HIGH": 0, "MEDIUM": 0, "LOW": 0}, "next_actions": [], "suggestions": []}
+    )
+    return project_dashboard_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        interview_readiness=interview_readiness,
+        demo_readiness=demo_readiness,
+        improvement_suggestions=improvement_suggestions,
+    )
 
 
 @router.get("/projects/{project_id}/demo-readiness")

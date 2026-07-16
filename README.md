@@ -32,6 +32,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 单节课程生成动手任务，把源码定位、调用链复述和改动影响演练转成检查清单。
 - 动手任务支持完成状态记录，并可从目标文件和源码锚点一键跳转到源码浏览页。
 - 学习进度页汇总项目级动手任务完成率、待完成任务和下一组练习入口。
+- 项目仪表盘汇总分析、学习、练习、面试、演示和工程改进六个维度评分。
 - 演示准备页汇总分析、架构图、学习路线、进度、练习、面试和报告导出闭环。
 - 演示讲稿页把项目事实、学习闭环、演示准备度和后续优化计划整理成可复述的展示顺序。
 - 项目改进建议页基于静态分析、学习进度、动手练习和测验记录生成 V1.2 优化任务，并提供可直接复述的面试说法。
@@ -131,7 +132,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 6. 进入项目概览、架构图、学习路线和课程测验页面，重点查看课程里的真实调用关系。
 7. 配置模型接口后，可在 LLM 调用审计页面查看课程增强的提示词、响应和校验结果。
 8. 进入源码浏览页面，按层级或关键词定位课程引用的文件。
-9. 进入学习进度页面，查看完成率、待复习课程和下一节推荐。
+9. 进入项目仪表盘和学习进度页面，查看总览评分、完成率、待复习课程和下一节推荐。
 10. 如果测验低于 60 分，查看自动生成的补充讲解并完成二次测验。
 11. 进入复习中心，查看测验历史、缺失点、误区、待练任务和待掌握面试题。
 12. 进入面试准备页面，按项目介绍、架构讲述和高频问答准备项目讲解。
@@ -171,6 +172,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/progress`
+- `GET /api/projects/{project_id}/dashboard`
 - `GET /api/projects/{project_id}/demo-readiness`
 - `GET /api/projects/{project_id}/demo-script`
 - `GET /api/projects/{project_id}/demo-script.md`

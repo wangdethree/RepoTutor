@@ -69,4 +69,5 @@ def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypat
     assert capabilities["features"]["interview_markdown_export"] is True
     assert capabilities["features"]["interview_readiness"] is True
     assert capabilities["features"]["interview_question_records"] is True
+    assert capabilities["features"]["project_dashboard"] is True
     assert capabilities["llm"]["configured"] is False
