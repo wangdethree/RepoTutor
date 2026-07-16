@@ -24,6 +24,7 @@ from app.services.demo_script_service import DemoScriptService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
+from app.services.incremental_learning_service import IncrementalLearningService
 from app.services.interview_readiness_service import InterviewReadinessService
 from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
@@ -56,6 +57,7 @@ project_improvement_service = ProjectImprovementService()
 interview_readiness_service = InterviewReadinessService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
+incremental_learning_service = IncrementalLearningService()
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
 lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent, repository=repository)
@@ -116,6 +118,7 @@ def get_capabilities() -> dict:
             "diff_impact_analysis": True,
             "pr_review_pack": True,
             "pr_review_markdown_export": True,
+            "incremental_learning": True,
             "demo_readiness": True,
             "demo_script": True,
             "demo_script_markdown_export": True,
@@ -413,17 +416,10 @@ def get_dependency_graph(project_id: str) -> dict:
 
 @router.post("/projects/{project_id}/diff-impact")
 def analyze_diff_impact(project_id: str, payload: dict) -> dict:
-    analysis_payload = repository.get_analysis(project_id)
-    if not analysis_payload:
-        raise HTTPException(status_code=404, detail="请先分析项目")
     diff_text = str(payload.get("diff", "")).strip()
     if not diff_text:
         raise HTTPException(status_code=400, detail="diff 内容不能为空")
-    return diff_impact_service.analyze(
-        from_dict(analysis_payload),
-        diff_text,
-        plan=repository.get_learning_plan(project_id),
-    )
+    return _build_diff_impact(project_id, diff_text)
 
 
 @router.post("/projects/{project_id}/pr-review")
@@ -448,6 +444,19 @@ def download_pr_review(project_id: str, payload: dict) -> Response:
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/projects/{project_id}/incremental-learning")
+def build_incremental_learning(project_id: str, payload: dict) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    diff_text = str(payload.get("diff", "")).strip()
+    if not diff_text:
+        raise HTTPException(status_code=400, detail="diff 内容不能为空")
+    impact = _build_diff_impact(project_id, diff_text)
+    pr_review = pr_review_service.build(project, diff_text, impact)
+    return incremental_learning_service.build(project, impact, pr_review)
 
 
 @router.post("/projects/{project_id}/ask")
@@ -1107,17 +1116,20 @@ def _build_project_demo_script(project_id: str) -> dict:
 
 def _build_pr_review(project_id: str, diff_text: str) -> dict:
     project = repository.get_project(project_id)
-    analysis_payload = repository.get_analysis(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    return pr_review_service.build(project, diff_text, _build_diff_impact(project_id, diff_text))
+
+
+def _build_diff_impact(project_id: str, diff_text: str) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
-    impact = diff_impact_service.analyze(
+    return diff_impact_service.analyze(
         from_dict(analysis_payload),
         diff_text,
         plan=repository.get_learning_plan(project_id),
     )
-    return pr_review_service.build(project, diff_text, impact)
 
 
 async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:
