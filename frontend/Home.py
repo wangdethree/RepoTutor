@@ -55,14 +55,16 @@ if st.session_state.get("project_id"):
             for action in dashboard["next_actions"][:3]:
                 st.write(f"- {action}")
 
-        entry_cols = st.columns(4)
+        entry_cols = st.columns(5)
         if entry_cols[0].button("项目仪表盘"):
             st.switch_page("pages/18_Project_Dashboard.py")
         if entry_cols[1].button("学习路线"):
             st.switch_page("pages/3_Learning_Plan.py")
-        if entry_cols[2].button("演示讲稿"):
+        if entry_cols[2].button("源码追问"):
+            st.switch_page("pages/21_Source_Followup_QA.py")
+        if entry_cols[3].button("演示讲稿"):
             st.switch_page("pages/17_Demo_Script.py")
-        if entry_cols[3].button("报告导出"):
+        if entry_cols[4].button("报告导出"):
             st.switch_page("pages/11_Reports.py")
 
         st.divider()

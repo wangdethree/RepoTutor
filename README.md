@@ -22,6 +22,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 对课程输出做事实校验，拦截不存在的文件引用和越界行号。
 - 课程生成支持可选 LLM 增强，Prompt 会注入受控源码片段，模型输出校验失败时自动回退到确定性课程。
 - 项目问答支持可选 LLM 增强，回答必须保留事实依据、推断边界和真实源码引用。
+- V2 源码追问支持指定文件、函数和可选 diff，把回答范围收敛到相关文件、路由、调用链、课程和源码检查点。
 - 记录 LLM 调用审计：Prompt、响应、状态、耗时和失败原因，方便排查幻觉与回退。
 - 安全源码浏览：只允许查看静态分析确认过的项目文件，支持从课程跳转后返回学习上下文。
 - 后端健康检查与能力清单，便于本地调试和部署探活。
@@ -90,7 +91,7 @@ python3 scripts/e2e_demo_http.py
 python3 scripts/verify_offline.py
 ```
 
-该脚本会验证 ZIP 安全、AST 分析、架构图、学习路线、项目问答、测验评分等不依赖 Web 框架的能力。
+该脚本会验证 ZIP 安全、AST 分析、架构图、学习路线、项目问答、源码追问、测验评分等不依赖 Web 框架的能力。
 
 Agent 输出质量评测：
 
@@ -152,7 +153,8 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 1. 在 Diff 影响分析页面粘贴 `git diff`，查看变更文件、受影响文件、相关路由和相关课程。
 2. 在 PR 讲解包页面生成评审清单、测试计划、学习影响和面试复盘说法，并下载 Markdown。
 3. 在增量学习页面把同一份 diff 转成复习课程、源码检查点、练习任务和追问清单。
-4. 在报告导出页面的变更报告标签页，同时下载 PR 讲解包和增量学习建议。
+4. 在源码追问页面围绕具体文件、函数或同一份 diff 继续追问，跳转到引用源码或相关课程复习。
+5. 在报告导出页面的变更报告标签页，同时下载 PR 讲解包和增量学习建议。
 
 ## API 摘要
 
@@ -177,6 +179,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/projects/{project_id}/incremental-learning`
 - `POST /api/projects/{project_id}/incremental-learning.md`
 - `POST /api/projects/{project_id}/ask`
+- `POST /api/projects/{project_id}/contextual-qa`
 - `POST /api/projects/{project_id}/agent-runs/onboarding`
 - `GET /api/projects/{project_id}/agent-runs`
 - `GET /api/agent-runs/{run_id}`
