@@ -34,7 +34,11 @@ else:
 col1, col2 = st.columns(2)
 with col1:
     python_level = st.selectbox("Python 水平", ["入门", "基础", "熟练"])
-    learning_goal = st.selectbox("学习目标", ["看懂项目结构", "掌握 FastAPI 开发", "准备项目面试", "学会修改现有项目"])
+    learning_goals = st.multiselect(
+        "学习目标",
+        ["看懂项目结构", "掌握 FastAPI 开发", "准备项目面试", "学会修改现有项目"],
+        default=["看懂项目结构"],
+    )
 with col2:
     fastapi_level = st.selectbox("FastAPI 水平", ["未学习", "了解基础", "做过简单项目"])
     daily_time = st.selectbox("每天可用时间", ["30 分钟", "1 小时", "2 小时"])
@@ -46,13 +50,15 @@ if st.button("开始分析", type="primary", disabled=not can_start):
         "project_name": project_name,
         "python_level": python_level,
         "fastapi_level": fastapi_level,
-        "learning_goal": learning_goal,
+        "learning_goal": "、".join(learning_goals),
+        "learning_goals": learning_goals,
         "daily_time": daily_time,
     }
     with st.status("上传并分析项目", expanded=True) as status:
         if import_mode == "上传 ZIP":
             files = {"zip_file": (zip_file.name, zip_file.getvalue(), "application/zip")}
-            response = requests.post(f"{API_URL}/api/projects/upload", data=profile_payload, files=files, timeout=120)
+            form_payload = {**profile_payload, "learning_goals": ",".join(learning_goals)}
+            response = requests.post(f"{API_URL}/api/projects/upload", data=form_payload, files=files, timeout=120)
         else:
             payload = {**profile_payload, "github_url": github_url}
             response = requests.post(f"{API_URL}/api/projects/import-github", json=payload, timeout=180)

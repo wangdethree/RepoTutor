@@ -22,6 +22,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
 from app.services.lesson_generation_service import LessonGenerationService
+from app.services.profile_service import build_profile, build_profile_from_payload
 from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
 from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
@@ -192,7 +193,8 @@ async def upload_project(
     project_name: str = Form(...),
     python_level: str = Form(...),
     fastapi_level: str = Form(...),
-    learning_goal: str = Form(...),
+    learning_goal: str = Form("看懂项目结构"),
+    learning_goals: str = Form(""),
     daily_time: str = Form(...),
     zip_file: UploadFile = File(...),
 ) -> dict:
@@ -213,12 +215,7 @@ async def upload_project(
         shutil.rmtree(project_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    profile = {
-        "python_level": python_level,
-        "fastapi_level": fastapi_level,
-        "learning_goal": learning_goal,
-        "daily_time": daily_time,
-    }
+    profile = build_profile(python_level, fastapi_level, learning_goal, daily_time, learning_goals)
     project = repository.create_project(project_name, zip_file.filename, extract_dir, profile)
     return {"project": project, "profile": profile}
 
@@ -615,13 +612,8 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
     return None
 
 
-def _profile_from_payload(payload: dict) -> dict[str, str]:
-    return {
-        "python_level": str(payload.get("python_level", "基础")).strip() or "基础",
-        "fastapi_level": str(payload.get("fastapi_level", "了解基础")).strip() or "了解基础",
-        "learning_goal": str(payload.get("learning_goal", "看懂项目结构")).strip() or "看懂项目结构",
-        "daily_time": str(payload.get("daily_time", "30 分钟")).strip() or "30 分钟",
-    }
+def _profile_from_payload(payload: dict) -> dict:
+    return build_profile_from_payload(payload)
 
 
 def _lesson_status_from_score(score: int) -> str:

@@ -9,6 +9,7 @@ class CurriculumAgent:
     def generate(self, analysis: AnalysisResult, profile: dict) -> dict:
         daily_time = profile.get("daily_time", "1 小时")
         minutes = {"30 分钟": 30, "1 小时": 45, "2 小时": 60}.get(daily_time, 45)
+        learning_goals = self._learning_goals(profile)
         core_files = analysis.summary.core_modules
         route_files = sorted({route.file_path for route in analysis.routes})
         model_files = sorted({model.file_path for model in analysis.models})
@@ -80,11 +81,40 @@ class CurriculumAgent:
             ),
         ]
 
-        if profile.get("learning_goal") == "准备项目面试":
+        next_order = len(lessons) + 1
+        if "掌握 FastAPI 开发" in learning_goals:
             lessons.append(
                 self._lesson(
                     analysis.project_id,
-                    8,
+                    next_order,
+                    "FastAPI 开发规范与扩展点",
+                    ["掌握路由、Schema、Service 的扩展顺序", "理解新增接口的落点"],
+                    (route_files + schema_files + self._files_by_type(analysis, "service"))[:6] or core_files[:6],
+                    ["FastAPI 路由", "Pydantic Schema"],
+                    minutes,
+                )
+            )
+            next_order += 1
+
+        if "学会修改现有项目" in learning_goals:
+            lessons.append(
+                self._lesson(
+                    analysis.project_id,
+                    next_order,
+                    "动手修改路径与影响检查",
+                    ["规划一次安全代码修改", "根据依赖图检查影响范围"],
+                    (model_files + schema_files + self._files_by_type(analysis, "service"))[:6] or core_files[:6],
+                    ["依赖图", "回归测试"],
+                    minutes,
+                )
+            )
+            next_order += 1
+
+        if "准备项目面试" in learning_goals:
+            lessons.append(
+                self._lesson(
+                    analysis.project_id,
+                    next_order,
                     "项目面试讲解与架构取舍",
                     ["用架构图讲清项目", "解释分层和技术选型"],
                     core_files[:6],
@@ -137,3 +167,12 @@ class CurriculumAgent:
 
     def _daily_minutes(self, daily_time: str) -> int:
         return {"30 分钟": 30, "1 小时": 60, "2 小时": 120}.get(daily_time, 60)
+
+    def _learning_goals(self, profile: dict) -> list[str]:
+        goals = profile.get("learning_goals")
+        if isinstance(goals, list):
+            return [str(goal).strip() for goal in goals if str(goal).strip()]
+        goal = str(profile.get("learning_goal", "")).strip()
+        if not goal:
+            return ["看懂项目结构"]
+        return [item.strip() for item in goal.replace(",", "、").split("、") if item.strip()]

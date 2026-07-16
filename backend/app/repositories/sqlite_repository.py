@@ -156,7 +156,7 @@ class SQLiteRepository:
                 """
             )
 
-    def create_project(self, name: str, original_filename: str, root_path: Path, profile: dict[str, str]) -> dict:
+    def create_project(self, name: str, original_filename: str, root_path: Path, profile: dict[str, Any]) -> dict:
         project_id = str(uuid.uuid4())
         now = self._now()
         with self._connect() as conn:
@@ -199,7 +199,11 @@ class SQLiteRepository:
     def get_profile(self, project_id: str) -> dict | None:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM learner_profiles WHERE project_id = ?", (project_id,)).fetchone()
-        return self._row_to_dict(row) if row else None
+        if not row:
+            return None
+        profile = self._row_to_dict(row)
+        profile["learning_goals"] = self._learning_goals_from_stored(profile.get("learning_goal", ""))
+        return profile
 
     def save_analysis(self, project_id: str, payload: dict) -> None:
         summary = payload["summary"]
@@ -737,6 +741,20 @@ class SQLiteRepository:
         lesson["estimated_minutes"] = row["estimated_minutes"]
         lesson["status"] = row["status"]
         return lesson
+
+    def _learning_goals_from_stored(self, learning_goal: str) -> list[str]:
+        text = str(learning_goal or "").strip()
+        if not text:
+            return ["看懂项目结构"]
+        try:
+            decoded = json.loads(text)
+        except json.JSONDecodeError:
+            decoded = None
+        if isinstance(decoded, list):
+            goals = [str(goal).strip() for goal in decoded if str(goal).strip()]
+        else:
+            goals = [item.strip() for item in text.replace(",", "、").split("、") if item.strip()]
+        return goals or ["看懂项目结构"]
 
     def _quiz_result_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
         result = self._row_to_dict(row)
