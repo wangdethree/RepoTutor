@@ -10,6 +10,7 @@ from app.api import routes
 from app.main import app
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.services.analysis_service import AnalysisService
+from app.services.report_service import ReportService
 
 
 def test_interview_agent_generates_fact_checked_kit() -> None:
@@ -33,6 +34,23 @@ def test_interview_agent_generates_fact_checked_kit() -> None:
     for reference in kit["core_references"]:
         assert reference["file"] in valid_files
         assert 1 <= reference["line"] <= valid_files[reference["file"]]
+
+
+def test_interview_report_exports_markdown() -> None:
+    repo_root = Path(__file__).resolve().parents[2] / "demo_repositories" / "fastapi_shop"
+    analysis = AnalysisService().analyze("demo", repo_root)
+    kit = InterviewAgent().generate(analysis, {"learning_goal": "准备项目面试"})
+    project = {
+        "name": "FastAPI Shop",
+        "original_filename": "fastapi_shop.zip",
+    }
+
+    markdown = ReportService().build_interview_report(project, kit)
+
+    assert "# FastAPI Shop 面试准备材料" in markdown
+    assert "## 高频问答" in markdown
+    assert "## 核心源码证据" in markdown
+    assert kit["questions"][0]["question"] in markdown
 
 
 def test_interview_kit_api_returns_project_material(tmp_path: Path, monkeypatch) -> None:
@@ -59,3 +77,28 @@ def test_interview_kit_api_returns_project_material(tmp_path: Path, monkeypatch)
     assert payload["project_id"] == project["id"]
     assert payload["fact_checked"] is True
     assert payload["questions"][0]["references"]
+
+
+def test_interview_kit_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
+    repository = SQLiteRepository(f"sqlite:///{tmp_path / 'interview-report.db'}")
+    repo_root = Path(__file__).resolve().parents[2] / "demo_repositories" / "fastapi_shop"
+    profile = {
+        "python_level": "基础",
+        "fastapi_level": "了解基础",
+        "learning_goal": "准备项目面试",
+        "daily_time": "1 小时",
+    }
+    project = repository.create_project("FastAPI Shop", "fastapi_shop.zip", repo_root, profile)
+    analysis = AnalysisService().analyze(project["id"], repo_root)
+    repository.save_analysis(project["id"], analysis.to_dict())
+    plan = CurriculumAgent().generate(analysis, profile)
+    repository.save_learning_plan(project["id"], plan)
+    monkeypatch.setattr(routes, "repository", repository)
+    client = TestClient(app)
+
+    response = client.get(f"/api/projects/{project['id']}/interview-kit.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "interview-kit.md" in response.headers["content-disposition"]
+    assert "## 高频问答" in response.text

@@ -116,6 +116,7 @@ def get_capabilities() -> dict:
             "review_center": True,
             "quiz_assessment": True,
             "interview_prep": True,
+            "interview_markdown_export": True,
             "remedial_lessons": True,
             "knowledge_cards": True,
             "practice_tasks": True,
@@ -485,6 +486,19 @@ def get_interview_kit(project_id: str) -> dict:
     return interview_agent.generate(from_dict(analysis_payload), profile, progress)
 
 
+@router.get("/projects/{project_id}/interview-kit.md")
+def download_interview_kit(project_id: str) -> Response:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    filename = _safe_filename(project["name"]) + "-interview-kit.md"
+    return Response(
+        content=_build_interview_report(project_id),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/projects/{project_id}/reports/learning")
 def get_learning_report(project_id: str) -> dict:
     return {"markdown": _build_learning_report(project_id)}
@@ -713,6 +727,19 @@ def _build_learning_report(project_id: str) -> str:
         diagrams=repository.get_diagrams(project_id),
         practice_progress=_build_project_practice_progress(project_id),
     )
+
+
+def _build_interview_report(project_id: str) -> str:
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    profile = repository.get_profile(project_id) or {}
+    progress = repository.get_learning_progress(project_id)
+    kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
+    return report_service.build_interview_report(project=project, kit=kit)
 
 
 async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:

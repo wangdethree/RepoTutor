@@ -27,10 +27,24 @@ except requests.RequestException as exc:
 st.subheader(kit["title"])
 st.success(kit["elevator_pitch"])
 
-metrics = st.columns(3)
+try:
+    download_response = requests.get(f"{API_URL}/api/projects/{project_id}/interview-kit.md", timeout=30)
+except requests.RequestException:
+    download_response = None
+
+metrics = st.columns(4)
 metrics[0].metric("高频问题", len(kit["questions"]))
 metrics[1].metric("源码证据", len(kit["core_references"]))
 metrics[2].metric("事实校验", "已通过" if kit["fact_checked"] else "未通过")
+if download_response and download_response.status_code == 200:
+    metrics[3].download_button(
+        "下载面试材料",
+        data=download_response.text,
+        file_name=f"{project_id}-interview-kit.md",
+        mime="text/markdown",
+    )
+else:
+    metrics[3].button("下载面试材料", disabled=True)
 
 left, right = st.columns([1, 1])
 with left:

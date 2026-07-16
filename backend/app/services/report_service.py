@@ -207,6 +207,55 @@ class ReportService:
         lines.extend(self._quiz_result_lines(quiz_results or []))
         return "\n".join(lines) + "\n"
 
+    def build_interview_report(self, project: dict, kit: dict) -> str:
+        """导出面试讲解包，便于用户离线背诵和二次整理。"""
+
+        lines = [
+            f"# {project['name']} 面试准备材料",
+            "",
+            f"- 生成时间：{datetime.now(timezone.utc).isoformat()}",
+            f"- 原始文件：{project['original_filename']}",
+            f"- 讲解包：{kit['title']}",
+            f"- 事实校验：{'已通过' if kit.get('fact_checked') else '未通过'}",
+            "",
+            "## 1 分钟项目介绍",
+            "",
+            kit["elevator_pitch"],
+            "",
+            "## 架构讲解路径",
+            "",
+        ]
+        lines.extend(self._numbered_list(kit.get("architecture_story", []), "暂无架构讲解路径。"))
+        lines.extend(["", "## 技术亮点", ""])
+        lines.extend(self._markdown_list(kit.get("technical_highlights", []), "- 暂无技术亮点。"))
+        lines.extend(["", "## 权衡与风险", "", "### 技术权衡", ""])
+        lines.extend(self._markdown_list(kit.get("tradeoffs", []), "- 暂无技术权衡。"))
+        lines.extend(["", "### 风险提示", ""])
+        lines.extend(self._markdown_list(kit.get("risk_points", []), "- 暂无风险提示。"))
+        lines.extend(["", "## 高频问答", ""])
+        for index, question in enumerate(kit.get("questions", []), start=1):
+            lines.extend(
+                [
+                    f"### {index}. {question['question']}",
+                    "",
+                    f"- 分类：{question.get('category', '-')}",
+                    "",
+                    "#### 回答要点",
+                    "",
+                ]
+            )
+            lines.extend(self._markdown_list(question.get("answer_points", []), "- 暂无回答要点。"))
+            lines.extend(["", "#### 源码证据", ""])
+            lines.extend(self._reference_lines(question.get("references", [])))
+            lines.append("")
+        if not kit.get("questions"):
+            lines.append("- 暂无高频问答。")
+
+        lines.extend(["", "## 核心源码证据", ""])
+        lines.extend(self._reference_lines(kit.get("core_references", [])))
+        lines.extend(["", "## 收尾总结", "", kit["closing_summary"]])
+        return "\n".join(lines) + "\n"
+
     def _status_label(self, status: str) -> str:
         return {
             "NOT_STARTED": "未开始",
@@ -233,6 +282,25 @@ class ReportService:
         if not items:
             return [empty]
         return [f"- {item}" for item in items]
+
+    def _numbered_list(self, items: list[str], empty: str) -> list[str]:
+        if not items:
+            return [empty]
+        return [f"{index}. {item}" for index, item in enumerate(items, start=1)]
+
+    def _reference_lines(self, references: list[dict]) -> list[str]:
+        if not references:
+            return ["- 暂无源码证据。"]
+        lines = []
+        for reference in references:
+            lines.append(
+                (
+                    f"- `{reference['file']}:{reference['line']}` "
+                    f"{reference.get('kind', 'source')} "
+                    f"{reference.get('name', '')}"
+                ).strip()
+            )
+        return lines
 
     def _call_chain_lines(self, call_chains: list[dict]) -> list[str]:
         if not call_chains:
