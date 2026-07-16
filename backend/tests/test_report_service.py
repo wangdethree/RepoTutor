@@ -5,6 +5,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.agents.curriculum_agent import CurriculumAgent
+from app.agents.quiz_agent import QuizAgent
+from app.agents.teaching_agent import TeachingAgent
 from app.api import routes
 from app.diagrams.architecture_builder import build_all_diagrams
 from app.main import app
@@ -39,6 +41,32 @@ def test_report_service_builds_learning_markdown(tmp_path: Path) -> None:
     assert "FastAPI 后端服务" in markdown
 
 
+def test_report_service_builds_lesson_markdown(tmp_path: Path) -> None:
+    repository, project_id = _prepared_repository(tmp_path)
+    project = repository.get_project(project_id)
+    analysis = repository.get_analysis(project_id)
+    plan = repository.get_learning_plan(project_id)
+    assert project is not None
+    assert analysis is not None
+    assert plan is not None
+
+    lesson = TeachingAgent().generate(AnalysisService().analyze(project_id, Path(project["root_path"])), plan["lessons"][0])
+    quiz = QuizAgent().generate(AnalysisService().analyze(project_id, Path(project["root_path"])), lesson)
+
+    markdown = ReportService().build_lesson_report(
+        project=project,
+        lesson=lesson,
+        analysis=analysis,
+        quiz=quiz,
+        quiz_results=[],
+    )
+
+    assert f"# {lesson['title']}" in markdown
+    assert "## 核心代码位置" in markdown
+    assert "## 调用关系" in markdown
+    assert "## 测验题" in markdown
+
+
 def test_learning_report_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
     repository, project_id = _prepared_repository(tmp_path)
     monkeypatch.setattr(routes, "repository", repository)
@@ -52,6 +80,22 @@ def test_learning_report_api_returns_markdown_download(tmp_path: Path, monkeypat
     assert download_response.status_code == 200
     assert download_response.headers["content-type"].startswith("text/markdown")
     assert "learning-report.md" in download_response.headers["content-disposition"]
+
+
+def test_lesson_report_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
+    repository, project_id = _prepared_repository(tmp_path)
+    monkeypatch.setattr(routes, "repository", repository)
+    client = TestClient(app)
+    plan = repository.get_learning_plan(project_id)
+    assert plan is not None
+    lesson_id = plan["lessons"][0]["id"]
+
+    response = client.get(f"/api/lessons/{lesson_id}/report.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "lesson-report.md" in response.headers["content-disposition"]
+    assert "## 测验题" in response.text
 
 
 def _prepared_repository(tmp_path: Path) -> tuple[SQLiteRepository, str]:

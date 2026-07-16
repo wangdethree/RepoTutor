@@ -98,6 +98,7 @@ def get_capabilities() -> dict:
             "source_browser": True,
             "learning_progress": True,
             "markdown_reports": True,
+            "lesson_markdown_reports": True,
             "review_center": True,
             "quiz_assessment": True,
             "interview_prep": True,
@@ -460,6 +461,23 @@ def download_learning_report(project_id: str) -> Response:
     )
 
 
+@router.get("/lessons/{lesson_id}/report.md")
+async def download_lesson_report(lesson_id: str) -> Response:
+    lesson, project, analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
+    filename = _safe_filename(f"{project['name']}-{lesson['title']}") + "-lesson-report.md"
+    return Response(
+        content=report_service.build_lesson_report(
+            project=project,
+            lesson=lesson,
+            analysis=analysis_payload,
+            quiz=quiz,
+            quiz_results=repository.list_quiz_results_for_lesson(lesson_id),
+        ),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/lessons/{lesson_id}")
 async def get_lesson(lesson_id: str) -> dict:
     lesson = repository.get_lesson(lesson_id)
@@ -631,6 +649,36 @@ def _build_learning_report(project_id: str) -> str:
         progress=repository.get_learning_progress(project_id),
         diagrams=repository.get_diagrams(project_id),
     )
+
+
+async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:
+    lesson = repository.get_lesson(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="课程不存在")
+
+    project_id = lesson.get("project_id") or _project_id_from_lesson_plan(lesson_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="课程所属项目不存在")
+
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+
+    if "why" not in lesson:
+        lesson = await lesson_generation_service.generate(from_dict(analysis_payload), lesson)
+        lesson = _preserve_lesson_progress(repository.get_lesson(lesson_id) or {}, lesson)
+        repository.save_lesson_payload(lesson_id, lesson)
+
+    quiz_id = f"quiz-{lesson_id}"
+    quiz = repository.get_quiz(quiz_id)
+    if not quiz:
+        quiz = quiz_agent.generate(from_dict(analysis_payload), lesson)
+        repository.save_quiz(quiz)
+
+    return lesson, project, analysis_payload, quiz
 
 
 def _safe_filename(value: str) -> str:

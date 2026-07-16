@@ -107,7 +107,18 @@ status_cols = st.columns(4)
 status_cols[0].metric("课程状态", _status_label(lesson.get("status", "NOT_STARTED")))
 status_cols[1].metric("最近得分", lesson.get("last_score", "-"))
 status_cols[2].metric("掌握度", lesson.get("mastery_level", "-") or "-")
-if status_cols[3].button("标记完成"):
+report_response = requests.get(f"{API_URL}/api/lessons/{lesson_id}/report.md", timeout=30)
+if report_response.status_code == 200:
+    status_cols[3].download_button(
+        "下载课程",
+        data=report_response.text,
+        file_name=f"{lesson_id}-lesson-report.md",
+        mime="text/markdown",
+    )
+else:
+    status_cols[3].button("下载课程", disabled=True)
+
+if st.button("标记完成"):
     complete_response = requests.post(f"{API_URL}/api/lessons/{lesson_id}/complete", timeout=20)
     complete_response.raise_for_status()
     st.success("课程已标记完成")
