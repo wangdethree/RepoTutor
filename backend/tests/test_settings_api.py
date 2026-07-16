@@ -54,6 +54,7 @@ def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypat
     assert health_response.json()["database"] == "ok"
     assert capabilities_response.status_code == 200
     capabilities = capabilities_response.json()
+    assert capabilities["features"]["built_in_demo_project"] is True
     assert capabilities["features"]["static_analysis"] is True
     assert capabilities["features"]["demo_readiness"] is True
     assert capabilities["features"]["demo_script"] is True

@@ -105,6 +105,7 @@ def get_capabilities() -> dict:
         "features": {
             "safe_zip_upload": True,
             "github_url_import": True,
+            "built_in_demo_project": True,
             "static_analysis": True,
             "architecture_diagrams": True,
             "dependency_graph_data": True,
@@ -274,6 +275,33 @@ def import_github_project(payload: dict) -> dict:
     project_name = str(payload.get("project_name") or repo_ref.repo).strip() or repo_ref.repo
     project = repository.create_project(project_name, repo_ref.archive_filename, repo_root, profile)
     return {"project": project, "profile": profile, "github": repo_ref.to_dict()}
+
+
+@router.post("/demo-projects/fastapi-shop")
+def bootstrap_fastapi_shop_demo(payload: dict | None = None) -> dict:
+    demo_root = _fastapi_shop_demo_root()
+    if not demo_root.exists():
+        raise HTTPException(status_code=404, detail="内置示例项目不存在")
+    profile = _demo_profile(payload or {})
+    project = _find_demo_project(demo_root)
+    created = False
+    if not project:
+        project = repository.create_project("FastAPI Shop Demo", "fastapi_shop_demo", demo_root, profile)
+        created = True
+    analysis_payload = _ensure_project_analysis(project["id"], demo_root)
+    diagrams = _ensure_project_diagrams(project["id"], analysis_payload)
+    plan = _ensure_project_learning_plan(project["id"], analysis_payload, repository.get_profile(project["id"]) or profile)
+    return {
+        "project": repository.get_project(project["id"]),
+        "profile": repository.get_profile(project["id"]),
+        "demo": {
+            "created": created,
+            "source": "demo_repositories/fastapi_shop",
+            "analysis_ready": True,
+            "diagrams": len(diagrams),
+            "lessons": plan.get("total_lessons", len(plan.get("lessons", []))),
+        },
+    }
 
 
 @router.get("/projects")
@@ -811,6 +839,62 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
 
 def _profile_from_payload(payload: dict) -> dict:
     return build_profile_from_payload(payload)
+
+
+def _demo_profile(payload: dict) -> dict:
+    return build_profile_from_payload(
+        {
+            "python_level": payload.get("python_level", "基础"),
+            "fastapi_level": payload.get("fastapi_level", "了解基础"),
+            "learning_goal": payload.get("learning_goal", "看懂项目结构、准备项目面试"),
+            "learning_goals": payload.get("learning_goals", ["看懂项目结构", "准备项目面试"]),
+            "daily_time": payload.get("daily_time", "1 小时"),
+        }
+    )
+
+
+def _fastapi_shop_demo_root() -> Path:
+    return Path(__file__).resolve().parents[3] / "demo_repositories" / "fastapi_shop"
+
+
+def _find_demo_project(demo_root: Path) -> dict | None:
+    target = str(demo_root.resolve())
+    for project in repository.list_projects():
+        if project.get("original_filename") != "fastapi_shop_demo":
+            continue
+        try:
+            if str(Path(project["root_path"]).resolve()) == target:
+                return project
+        except OSError:
+            continue
+    return None
+
+
+def _ensure_project_analysis(project_id: str, root_path: Path) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if analysis_payload:
+        return analysis_payload
+    analysis = analysis_service.analyze(project_id, root_path)
+    repository.save_analysis(project_id, analysis.to_dict())
+    return analysis.to_dict()
+
+
+def _ensure_project_diagrams(project_id: str, analysis_payload: dict) -> list[dict]:
+    diagrams = repository.get_diagrams(project_id)
+    if diagrams:
+        return diagrams
+    diagrams = [diagram.__dict__ for diagram in build_all_diagrams(from_dict(analysis_payload))]
+    repository.save_diagrams(project_id, diagrams)
+    return repository.get_diagrams(project_id)
+
+
+def _ensure_project_learning_plan(project_id: str, analysis_payload: dict, profile: dict) -> dict:
+    plan = repository.get_learning_plan(project_id)
+    if plan:
+        return plan
+    plan = curriculum_agent.generate(from_dict(analysis_payload), profile)
+    repository.save_learning_plan(project_id, plan)
+    return repository.get_learning_plan(project_id) or plan
 
 
 def _lesson_status_from_score(score: int) -> str:

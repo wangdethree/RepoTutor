@@ -22,6 +22,34 @@ with st.sidebar:
 
 st.header("项目导入")
 
+st.subheader("快速体验")
+demo_cols = st.columns([1, 3])
+if demo_cols[0].button("加载示例项目", type="primary"):
+    with st.status("准备内置 FastAPI Shop Demo", expanded=True) as status:
+        demo_response = requests.post(
+            f"{API_URL}/api/demo-projects/fastapi-shop",
+            json={
+                "python_level": "基础",
+                "fastapi_level": "了解基础",
+                "learning_goals": ["看懂项目结构", "准备项目面试"],
+                "daily_time": "1 小时",
+            },
+            timeout=180,
+        )
+        if demo_response.status_code >= 400:
+            st.error(demo_response.text)
+            st.stop()
+        payload = demo_response.json()
+        st.session_state["project_id"] = payload["project"]["id"]
+        st.write(f"架构图：{payload['demo']['diagrams']} 张")
+        st.write(f"课程：{payload['demo']['lessons']} 节")
+        status.update(label="示例项目已准备好", state="complete")
+    st.success("已选择 FastAPI Shop Demo。")
+    st.rerun()
+demo_cols[1].caption("FastAPI Shop Demo")
+
+st.divider()
+
 project_name = st.text_input("项目名称", value="FastAPI Demo")
 import_mode = st.radio("导入方式", ["上传 ZIP", "GitHub URL"], horizontal=True)
 zip_file = None
