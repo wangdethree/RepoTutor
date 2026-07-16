@@ -88,12 +88,20 @@ if pending_interview_questions:
     st.subheader("待掌握面试题")
     for question in pending_interview_questions[:5]:
         with st.container(border=True):
-            cols = st.columns([4, 1])
+            cols = st.columns([4, 1, 1])
             cols[0].caption(question["category"])
             cols[0].markdown(f"**{question['question']}**")
             for point in question["answer_points"][:3]:
                 cols[0].write(f"- {point}")
-            if cols[1].button("去练题", key=f"interview-question-review-{question['id']}"):
+            if cols[1].button("标记掌握", key=f"interview-question-master-{question['id']}"):
+                status_response = requests.post(
+                    f"{API_URL}/api/projects/{project_id}/interview-questions/{question['id']}/status",
+                    json={"mastered": True},
+                    timeout=30,
+                )
+                status_response.raise_for_status()
+                st.rerun()
+            if cols[2].button("去练题", key=f"interview-question-review-{question['id']}"):
                 st.switch_page("pages/13_Interview.py")
 
 if weak_results:
