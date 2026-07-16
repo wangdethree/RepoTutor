@@ -763,7 +763,13 @@ def _build_interview_report(project_id: str) -> str:
     profile = repository.get_profile(project_id) or {}
     progress = repository.get_learning_progress(project_id)
     kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
-    return report_service.build_interview_report(project=project, kit=kit)
+    readiness = interview_readiness_service.build(
+        progress=progress,
+        practice_progress=_build_project_practice_progress(project_id),
+        quiz_results=repository.list_quiz_results_for_project(project_id),
+        interview_kit=kit,
+    )
+    return report_service.build_interview_report(project=project, kit=kit, readiness=readiness)
 
 
 async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:

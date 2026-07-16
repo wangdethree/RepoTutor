@@ -207,7 +207,7 @@ class ReportService:
         lines.extend(self._quiz_result_lines(quiz_results or []))
         return "\n".join(lines) + "\n"
 
-    def build_interview_report(self, project: dict, kit: dict) -> str:
+    def build_interview_report(self, project: dict, kit: dict, readiness: dict | None = None) -> str:
         """导出面试讲解包，便于用户离线背诵和二次整理。"""
 
         lines = [
@@ -221,10 +221,10 @@ class ReportService:
             "## 1 分钟项目介绍",
             "",
             kit["elevator_pitch"],
-            "",
-            "## 架构讲解路径",
-            "",
         ]
+        if readiness:
+            lines.extend(self._interview_readiness_lines(readiness))
+        lines.extend(["", "## 架构讲解路径", ""])
         lines.extend(self._numbered_list(kit.get("architecture_story", []), "暂无架构讲解路径。"))
         lines.extend(["", "## 技术亮点", ""])
         lines.extend(self._markdown_list(kit.get("technical_highlights", []), "- 暂无技术亮点。"))
@@ -301,6 +301,76 @@ class ReportService:
                 ).strip()
             )
         return lines
+
+    def _interview_readiness_lines(self, readiness: dict) -> list[str]:
+        breakdown = readiness.get("score_breakdown", {})
+        lines = [
+            "## 面试准备度",
+            "",
+            f"- 准备度：{readiness.get('readiness_score', 0)}%",
+            f"- 状态：{self._readiness_label(readiness.get('readiness_level', ''))}",
+            f"- 课程完成：{breakdown.get('course_completion', 0)}%",
+            f"- 动手练习：{breakdown.get('practice_completion', 0)}%",
+            f"- 测验平均分：{breakdown.get('quiz_average', 0)}%",
+            f"- 源码证据：{breakdown.get('source_evidence', 0)}%",
+            "",
+            "### 准备清单",
+            "",
+            "| 项目 | 状态 | 当前情况 | 建议动作 |",
+            "| --- | --- | --- | --- |",
+        ]
+        for item in readiness.get("checklist", []):
+            lines.append(
+                "| "
+                f"{item['title']} | "
+                f"{self._readiness_item_status(item['status'])} | "
+                f"{item['detail']} | "
+                f"{item['action']} |"
+            )
+        if not readiness.get("checklist"):
+            lines.append("| - | - | 暂无准备清单 | - |")
+
+        lines.extend(["", "### 下一步建议", ""])
+        lines.extend(self._markdown_list(readiness.get("recommended_actions", []), "- 暂无下一步建议。"))
+        if readiness.get("weak_lessons"):
+            lines.extend(["", "### 优先复习课程", ""])
+            lines.extend(
+                self._markdown_list(
+                    [
+                        f"{lesson['order_index']}. {lesson['title']}"
+                        for lesson in readiness["weak_lessons"]
+                    ],
+                    "- 暂无需复习课程。",
+                )
+            )
+        if readiness.get("pending_practice_lessons"):
+            lines.extend(["", "### 待完成动手任务", ""])
+            lines.extend(
+                self._markdown_list(
+                    [
+                        f"{lesson['order_index']}. {lesson['lesson_title']}："
+                        + "、".join(lesson.get("pending_tasks", [])[:3])
+                        for lesson in readiness["pending_practice_lessons"]
+                    ],
+                    "- 暂无待完成动手任务。",
+                )
+            )
+        lines.append("")
+        return lines
+
+    def _readiness_label(self, level: str) -> str:
+        return {
+            "READY": "可进入面试演练",
+            "ALMOST_READY": "接近可面试",
+            "NEEDS_WORK": "还需补强",
+        }.get(level, level)
+
+    def _readiness_item_status(self, status: str) -> str:
+        return {
+            "DONE": "已完成",
+            "IN_PROGRESS": "进行中",
+            "TODO": "待补齐",
+        }.get(status, status)
 
     def _call_chain_lines(self, call_chains: list[dict]) -> list[str]:
         if not call_chains:

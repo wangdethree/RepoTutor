@@ -44,10 +44,33 @@ def test_interview_report_exports_markdown() -> None:
         "name": "FastAPI Shop",
         "original_filename": "fastapi_shop.zip",
     }
+    readiness = {
+        "readiness_score": 82,
+        "readiness_level": "READY",
+        "score_breakdown": {
+            "course_completion": 90,
+            "practice_completion": 80,
+            "quiz_average": 85,
+            "source_evidence": 100,
+        },
+        "checklist": [
+            {
+                "title": "课程路线完成度",
+                "status": "DONE",
+                "detail": "当前课程完成率 90%。",
+                "action": "保持当前节奏。",
+            }
+        ],
+        "recommended_actions": ["导出面试材料并进行口头演练。"],
+        "weak_lessons": [],
+        "pending_practice_lessons": [],
+    }
 
-    markdown = ReportService().build_interview_report(project, kit)
+    markdown = ReportService().build_interview_report(project, kit, readiness=readiness)
 
     assert "# FastAPI Shop 面试准备材料" in markdown
+    assert "## 面试准备度" in markdown
+    assert "准备度：82%" in markdown
     assert "## 高频问答" in markdown
     assert "## 核心源码证据" in markdown
     assert kit["questions"][0]["question"] in markdown
@@ -101,6 +124,7 @@ def test_interview_kit_api_returns_markdown_download(tmp_path: Path, monkeypatch
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/markdown")
     assert "interview-kit.md" in response.headers["content-disposition"]
+    assert "## 面试准备度" in response.text
     assert "## 高频问答" in response.text
 
 
