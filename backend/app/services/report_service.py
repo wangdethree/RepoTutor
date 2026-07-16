@@ -15,6 +15,7 @@ class ReportService:
         progress: dict,
         diagrams: list[dict],
         practice_progress: dict | None = None,
+        improvement_suggestions: dict | None = None,
     ) -> str:
         summary = analysis["summary"]
         lines = [
@@ -103,6 +104,9 @@ class ReportService:
                 lines.append(f"- {diagram['title']}：{diagram['description']}（{diagram['format']}）")
         else:
             lines.append("- 尚未生成架构图。")
+
+        if improvement_suggestions:
+            lines.extend(self._improvement_suggestion_lines(improvement_suggestions))
 
         lines.extend(["", "## 建议", ""])
         lines.extend(self._recommendations(progress))
@@ -207,7 +211,13 @@ class ReportService:
         lines.extend(self._quiz_result_lines(quiz_results or []))
         return "\n".join(lines) + "\n"
 
-    def build_interview_report(self, project: dict, kit: dict, readiness: dict | None = None) -> str:
+    def build_interview_report(
+        self,
+        project: dict,
+        kit: dict,
+        readiness: dict | None = None,
+        improvement_suggestions: dict | None = None,
+    ) -> str:
         """导出面试讲解包，便于用户离线背诵和二次整理。"""
 
         lines = [
@@ -224,6 +234,8 @@ class ReportService:
         ]
         if readiness:
             lines.extend(self._interview_readiness_lines(readiness))
+        if improvement_suggestions:
+            lines.extend(self._interview_improvement_lines(improvement_suggestions))
         lines.extend(["", "## 架构讲解路径", ""])
         lines.extend(self._numbered_list(kit.get("architecture_story", []), "暂无架构讲解路径。"))
         lines.extend(["", "## 技术亮点", ""])
@@ -358,6 +370,119 @@ class ReportService:
             )
         lines.append("")
         return lines
+
+    def _improvement_suggestion_lines(self, payload: dict) -> list[str]:
+        suggestions = payload.get("suggestions", [])
+        counts = payload.get("priority_counts", {})
+        lines = [
+            "",
+            "## 项目改进建议",
+            "",
+            f"- 建议数：{payload.get('suggestion_count', len(suggestions))}",
+            f"- 最高优先级：{self._priority_label(payload.get('highest_priority', 'NONE'))}",
+            f"- 高优先级：{counts.get('HIGH', 0)}",
+            f"- 中优先级：{counts.get('MEDIUM', 0)}",
+            f"- 低优先级：{counts.get('LOW', 0)}",
+            "",
+            "### 下一步任务",
+            "",
+        ]
+        lines.extend(self._markdown_list(payload.get("next_actions", []), "- 暂无下一步任务。"))
+        lines.extend(
+            [
+                "",
+                "### 建议明细",
+                "",
+                "| 优先级 | 分类 | 建议 | 原因 |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for suggestion in suggestions:
+            lines.append(
+                "| "
+                f"{self._priority_label(suggestion['priority'])} | "
+                f"{self._table_cell(suggestion['category'])} | "
+                f"{self._table_cell(suggestion['title'])} | "
+                f"{self._table_cell(suggestion['reason'])} |"
+            )
+        if not suggestions:
+            lines.append("| - | - | 暂无改进建议 | - |")
+        lines.extend(self._improvement_detail_lines(suggestions[:5]))
+        return lines
+
+    def _interview_improvement_lines(self, payload: dict) -> list[str]:
+        suggestions = payload.get("suggestions", [])[:4]
+        lines = [
+            "",
+            "## 项目改进讲述素材",
+            "",
+            f"- 最高优先级：{self._priority_label(payload.get('highest_priority', 'NONE'))}",
+            "- 用途：面试中可把这些点讲成“我接下来会如何继续工程化这个项目”。",
+            "",
+        ]
+        if not suggestions:
+            lines.append("- 当前没有明显改进建议。")
+            return lines
+
+        for index, suggestion in enumerate(suggestions, start=1):
+            lines.extend(
+                [
+                    f"### {index}. {suggestion['title']}",
+                    "",
+                    f"- 优先级：{self._priority_label(suggestion['priority'])}",
+                    f"- 分类：{suggestion['category']}",
+                    f"- 原因：{suggestion['reason']}",
+                    "",
+                    "#### 可讲行动",
+                    "",
+                ]
+            )
+            lines.extend(self._markdown_list(suggestion.get("action_items", [])[:3], "- 暂无可讲行动。"))
+            if suggestion.get("related_files"):
+                files = [f"`{path}`" for path in suggestion["related_files"][:4]]
+                lines.extend(["", "#### 关联文件", ""])
+                lines.extend(self._markdown_list(files, "- 暂无关联文件。"))
+            if suggestion.get("related_lessons"):
+                lessons = [
+                    f"{lesson.get('order_index', 0)}. {lesson.get('title', '')}"
+                    for lesson in suggestion["related_lessons"][:3]
+                ]
+                lines.extend(["", "#### 关联课程", ""])
+                lines.extend(self._markdown_list(lessons, "- 暂无关联课程。"))
+            lines.append("")
+        return lines
+
+    def _improvement_detail_lines(self, suggestions: list[dict]) -> list[str]:
+        if not suggestions:
+            return []
+        lines = ["", "### 可执行动作", ""]
+        for suggestion in suggestions:
+            lines.extend([f"#### {suggestion['title']}", ""])
+            lines.extend(self._markdown_list(suggestion.get("action_items", []), "- 暂无可执行动作。"))
+            if suggestion.get("related_files"):
+                files = [f"`{path}`" for path in suggestion["related_files"]]
+                lines.extend(["", "关联文件："])
+                lines.extend(self._markdown_list(files, "- 暂无关联文件。"))
+            if suggestion.get("related_lessons"):
+                lessons = [
+                    f"{lesson.get('order_index', 0)}. {lesson.get('title', '')}"
+                    for lesson in suggestion["related_lessons"]
+                ]
+                lines.extend(["", "关联课程："])
+                lines.extend(self._markdown_list(lessons, "- 暂无关联课程。"))
+            lines.append("")
+        return lines
+
+    def _priority_label(self, priority: str) -> str:
+        return {
+            "HIGH": "高",
+            "MEDIUM": "中",
+            "LOW": "低",
+            "NONE": "无",
+        }.get(priority, priority)
+
+    def _table_cell(self, value: str) -> str:
+        return str(value).replace("|", "\\|").replace("\n", " ")
 
     def _readiness_label(self, level: str) -> str:
         return {

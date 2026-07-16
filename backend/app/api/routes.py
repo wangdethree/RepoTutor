@@ -109,6 +109,7 @@ def get_capabilities() -> dict:
             "diff_impact_analysis": True,
             "demo_readiness": True,
             "improvement_suggestions": True,
+            "improvement_report_export": True,
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
@@ -818,14 +819,25 @@ def _build_learning_report(project_id: str) -> str:
         raise HTTPException(status_code=404, detail="请先分析项目")
     if not plan:
         raise HTTPException(status_code=404, detail="请先生成学习路线")
+    progress = repository.get_learning_progress(project_id)
+    practice_progress = _build_project_practice_progress(project_id)
+    improvement_suggestions = project_improvement_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=repository.list_quiz_results_for_project(project_id),
+    )
     return report_service.build_learning_report(
         project=project,
         profile=profile,
         analysis=analysis_payload,
         plan=plan,
-        progress=repository.get_learning_progress(project_id),
+        progress=progress,
         diagrams=repository.get_diagrams(project_id),
-        practice_progress=_build_project_practice_progress(project_id),
+        practice_progress=practice_progress,
+        improvement_suggestions=improvement_suggestions,
     )
 
 
@@ -842,15 +854,31 @@ def _build_interview_report(project_id: str) -> str:
         project_id,
         interview_agent.generate(from_dict(analysis_payload), profile, progress),
     )
+    plan = repository.get_learning_plan(project_id)
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    practice_progress = _build_project_practice_progress(project_id) if plan else None
     readiness = None
     if progress["plan_id"]:
         readiness = interview_readiness_service.build(
             progress=progress,
-            practice_progress=_build_project_practice_progress(project_id),
-            quiz_results=repository.list_quiz_results_for_project(project_id),
+            practice_progress=practice_progress,
+            quiz_results=quiz_results,
             interview_kit=kit,
         )
-    return report_service.build_interview_report(project=project, kit=kit, readiness=readiness)
+    improvement_suggestions = project_improvement_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+    )
+    return report_service.build_interview_report(
+        project=project,
+        kit=kit,
+        readiness=readiness,
+        improvement_suggestions=improvement_suggestions,
+    )
 
 
 async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:

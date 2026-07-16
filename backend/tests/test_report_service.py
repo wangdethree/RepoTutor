@@ -49,6 +49,7 @@ def test_report_service_builds_learning_markdown(tmp_path: Path) -> None:
                 }
             ],
         },
+        improvement_suggestions=_sample_improvement_suggestions(),
     )
 
     assert "# FastAPI Shop 学习报告" in markdown
@@ -56,6 +57,8 @@ def test_report_service_builds_learning_markdown(tmp_path: Path) -> None:
     assert "## 学习路线进度" in markdown
     assert "## 动手任务进度" in markdown
     assert "调用链复述" in markdown
+    assert "## 项目改进建议" in markdown
+    assert "补齐核心流程测试" in markdown
     assert "FastAPI 后端服务" in markdown
 
 
@@ -103,9 +106,11 @@ def test_learning_report_api_returns_markdown_download(tmp_path: Path, monkeypat
 
     assert preview_response.status_code == 200
     assert "学习报告" in preview_response.json()["markdown"]
+    assert "## 项目改进建议" in preview_response.json()["markdown"]
     assert download_response.status_code == 200
     assert download_response.headers["content-type"].startswith("text/markdown")
     assert "learning-report.md" in download_response.headers["content-disposition"]
+    assert "## 项目改进建议" in download_response.text
 
 
 def test_lesson_report_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
@@ -125,6 +130,30 @@ def test_lesson_report_api_returns_markdown_download(tmp_path: Path, monkeypatch
     assert "## 动手任务" in response.text
 
 
+def test_report_service_adds_improvement_suggestions_to_interview_markdown() -> None:
+    markdown = ReportService().build_interview_report(
+        project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},
+        kit={
+            "title": "FastAPI Shop 面试讲解包",
+            "fact_checked": True,
+            "elevator_pitch": "这是一个用于演示 FastAPI 分层结构的项目。",
+            "architecture_story": ["从路由进入服务层。"],
+            "technical_highlights": ["静态分析生成学习路线。"],
+            "tradeoffs": ["V1 使用确定性规则保证离线演示。"],
+            "risk_points": ["需要继续补齐真实项目测试。"],
+            "questions": [],
+            "core_references": [],
+            "closing_summary": "可以围绕入口、服务和数据三层收尾。",
+        },
+        readiness=None,
+        improvement_suggestions=_sample_improvement_suggestions(),
+    )
+
+    assert "## 项目改进讲述素材" in markdown
+    assert "补齐核心流程测试" in markdown
+    assert "面试中可把这些点讲成" in markdown
+
+
 def _prepared_repository(tmp_path: Path) -> tuple[SQLiteRepository, str]:
     repository = SQLiteRepository(f"sqlite:///{tmp_path / 'report.db'}")
     repo_root = Path(__file__).resolve().parents[2] / "demo_repositories" / "fastapi_shop"
@@ -142,3 +171,29 @@ def _prepared_repository(tmp_path: Path) -> tuple[SQLiteRepository, str]:
     repository.save_learning_plan(project["id"], plan)
     repository.update_lesson_status(plan["lessons"][0]["id"], "COMPLETED", score=90, mastery_level="MASTERED")
     return repository, project["id"]
+
+
+def _sample_improvement_suggestions() -> dict:
+    return {
+        "suggestion_count": 1,
+        "priority_counts": {"HIGH": 1, "MEDIUM": 0, "LOW": 0},
+        "highest_priority": "HIGH",
+        "next_actions": ["为项目导入、静态分析、学习路线生成各补 1 条接口测试。"],
+        "suggestions": [
+            {
+                "id": "testing_baseline",
+                "category": "测试兜底",
+                "priority": "HIGH",
+                "title": "补齐核心流程测试",
+                "reason": "当前核心演示链路还需要更明确的自动化测试证据。",
+                "action_items": [
+                    "为项目导入、静态分析、学习路线生成各补 1 条接口测试。",
+                    "为核心 service 增加确定性单元测试。",
+                ],
+                "related_files": ["backend/app/api/routes.py"],
+                "related_lessons": [
+                    {"id": "lesson-1", "title": "入口与路由", "order_index": 1},
+                ],
+            }
+        ],
+    }

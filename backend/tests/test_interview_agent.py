@@ -127,6 +127,7 @@ def test_interview_kit_api_returns_markdown_download(tmp_path: Path, monkeypatch
     assert response.headers["content-type"].startswith("text/markdown")
     assert "interview-kit.md" in response.headers["content-disposition"]
     assert "## 面试准备度" in response.text
+    assert "## 项目改进讲述素材" in response.text
     assert "## 高频问答" in response.text
 
 
