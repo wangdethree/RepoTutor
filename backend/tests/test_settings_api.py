@@ -56,4 +56,6 @@ def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypat
     capabilities = capabilities_response.json()
     assert capabilities["features"]["static_analysis"] is True
     assert capabilities["features"]["source_browser"] is True
+    assert capabilities["features"]["source_browser_return_to_lesson"] is True
+    assert capabilities["features"]["practice_task_source_links"] is True
     assert capabilities["llm"]["configured"] is False

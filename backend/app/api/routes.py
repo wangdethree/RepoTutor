@@ -107,6 +107,7 @@ def get_capabilities() -> dict:
             "llm_project_qa": llm_config["api_key_configured"],
             "llm_audit": True,
             "source_browser": True,
+            "source_browser_return_to_lesson": True,
             "learning_progress": True,
             "markdown_reports": True,
             "lesson_markdown_reports": True,
@@ -116,6 +117,7 @@ def get_capabilities() -> dict:
             "remedial_lessons": True,
             "knowledge_cards": True,
             "practice_tasks": True,
+            "practice_task_source_links": True,
             "practice_progress": True,
         },
         "llm": {
