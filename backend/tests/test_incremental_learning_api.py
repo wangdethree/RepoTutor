@@ -34,6 +34,7 @@ def test_incremental_learning_api_returns_recommendations(tmp_path: Path, monkey
 """
 
     response = client.post(f"/api/projects/{project['id']}/incremental-learning", json={"diff": diff_text})
+    markdown_response = client.post(f"/api/projects/{project['id']}/incremental-learning.md", json={"diff": diff_text})
 
     assert response.status_code == 200
     payload = response.json()
@@ -41,3 +42,6 @@ def test_incremental_learning_api_returns_recommendations(tmp_path: Path, monkey
     assert payload["source_checkpoints"]
     assert payload["practice_tasks"]
     assert payload["questions_to_ask"]
+    assert markdown_response.status_code == 200
+    assert markdown_response.headers["content-type"].startswith("text/markdown")
+    assert "## 源码检查点" in markdown_response.text

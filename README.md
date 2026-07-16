@@ -14,7 +14,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 提供结构化依赖图数据 API，前端可按模块类型、重要度、核心文件和关键词筛选节点与依赖边。
 - 支持粘贴 git diff 做静态影响分析，定位受影响文件、相关路由和需复习课程。
 - V2 增加 PR 讲解包，根据 diff 影响分析生成评审清单、测试计划、学习影响和面试复盘说法，并支持 Markdown 导出。
-- V2 增量学习建议会把 diff 转成复习课程、源码检查点、练习任务和追问清单。
+- V2 增量学习建议会把 diff 转成复习课程、源码检查点、练习任务和追问清单，并支持 Markdown 导出。
 - Mermaid / PlantUML 架构图源码生成：分层架构、组件图、类图、ER 图、时序图、部署图、依赖图。
 - 根据用户画像生成 5 到 10 节学习路线。
 - 学习画像支持多目标选择，并兼容旧版单目标 `learning_goal` 数据。
@@ -152,6 +152,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 1. 在 Diff 影响分析页面粘贴 `git diff`，查看变更文件、受影响文件、相关路由和相关课程。
 2. 在 PR 讲解包页面生成评审清单、测试计划、学习影响和面试复盘说法，并下载 Markdown。
 3. 在增量学习页面把同一份 diff 转成复习课程、源码检查点、练习任务和追问清单。
+4. 在报告导出页面的变更报告标签页，同时下载 PR 讲解包和增量学习建议。
 
 ## API 摘要
 
@@ -174,6 +175,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `POST /api/projects/{project_id}/pr-review`
 - `POST /api/projects/{project_id}/pr-review.md`
 - `POST /api/projects/{project_id}/incremental-learning`
+- `POST /api/projects/{project_id}/incremental-learning.md`
 - `POST /api/projects/{project_id}/ask`
 - `POST /api/projects/{project_id}/agent-runs/onboarding`
 - `GET /api/projects/{project_id}/agent-runs`

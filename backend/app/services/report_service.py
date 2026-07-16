@@ -372,6 +372,71 @@ class ReportService:
         lines.extend(self._markdown_list(review.get("interview_talking_points", []), "- 暂无面试复盘说法。"))
         return "\n".join(lines) + "\n"
 
+    def build_incremental_learning_report(self, project: dict, payload: dict) -> str:
+        """导出增量学习建议，方便把一次变更转成复习和练习清单。"""
+
+        lines = [
+            f"# {payload['title']}",
+            "",
+            f"- 生成时间：{datetime.now(timezone.utc).isoformat()}",
+            f"- 项目：{project['name']}",
+            f"- 原始文件：{project['original_filename']}",
+            f"- 风险：{self._risk_label(payload.get('risk_level', 'LOW'))}",
+            "",
+            "## 变更摘要",
+            "",
+            payload.get("change_summary", ""),
+            "",
+            "## 下一步",
+            "",
+        ]
+        lines.extend(self._markdown_list(payload.get("next_steps", []), "- 暂无下一步建议。"))
+
+        lines.extend(["", "## 推荐复习课程", ""])
+        lessons = payload.get("recommended_lessons", [])
+        if lessons:
+            for lesson in lessons:
+                lines.extend(
+                    [
+                        f"### {lesson['order_index']}. {lesson['title']}",
+                        "",
+                        f"- 原因：{lesson.get('reason', '')}",
+                        f"- 命中文件：{self._join_inline_code(lesson.get('matched_files', []))}",
+                        "",
+                    ]
+                )
+        else:
+            lines.append("- 当前 diff 没有命中学习路线课程。")
+
+        lines.extend(["", "## 源码检查点", "", "| 文件 | 类型 | 检查点 |", "| --- | --- | --- |"])
+        for checkpoint in payload.get("source_checkpoints", []):
+            lines.append(
+                "| "
+                f"`{checkpoint['file']}` | "
+                f"{self._checkpoint_kind_label(checkpoint.get('kind', ''))} | "
+                f"{self._table_cell(checkpoint.get('checkpoint', ''))} |"
+            )
+        if not payload.get("source_checkpoints"):
+            lines.append("| - | - | 暂无源码检查点 |")
+
+        lines.extend(["", "## 练习任务", ""])
+        for index, task in enumerate(payload.get("practice_tasks", []), start=1):
+            lines.extend(
+                [
+                    f"### {index}. {task['title']}",
+                    "",
+                    f"- 目标：{task.get('objective', '')}",
+                    f"- 验收：{task.get('acceptance', '')}",
+                    "",
+                ]
+            )
+        if not payload.get("practice_tasks"):
+            lines.append("- 暂无练习任务。")
+
+        lines.extend(["", "## 可以继续追问", ""])
+        lines.extend(self._markdown_list(payload.get("questions_to_ask", []), "- 暂无追问。"))
+        return "\n".join(lines) + "\n"
+
     def _status_label(self, status: str) -> str:
         return {
             "NOT_STARTED": "未开始",
@@ -616,6 +681,15 @@ class ReportService:
             "PASS": "通过",
             "NEEDS_CHECK": "需检查",
         }.get(status, status)
+
+    def _checkpoint_kind_label(self, kind: str) -> str:
+        return {
+            "changed": "变更文件",
+            "impacted": "受影响文件",
+        }.get(kind, kind)
+
+    def _join_inline_code(self, values: list[str]) -> str:
+        return "、".join(f"`{value}`" for value in values) if values else "-"
 
     def _call_chain_lines(self, call_chains: list[dict]) -> list[str]:
         if not call_chains:

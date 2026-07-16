@@ -119,6 +119,7 @@ def get_capabilities() -> dict:
             "pr_review_pack": True,
             "pr_review_markdown_export": True,
             "incremental_learning": True,
+            "incremental_learning_markdown_export": True,
             "demo_readiness": True,
             "demo_script": True,
             "demo_script_markdown_export": True,
@@ -448,15 +449,30 @@ def download_pr_review(project_id: str, payload: dict) -> Response:
 
 @router.post("/projects/{project_id}/incremental-learning")
 def build_incremental_learning(project_id: str, payload: dict) -> dict:
+    diff_text = str(payload.get("diff", "")).strip()
+    if not diff_text:
+        raise HTTPException(status_code=400, detail="diff 内容不能为空")
+    return _build_incremental_learning(project_id, diff_text)
+
+
+@router.post("/projects/{project_id}/incremental-learning.md")
+def download_incremental_learning(project_id: str, payload: dict) -> Response:
     project = repository.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     diff_text = str(payload.get("diff", "")).strip()
     if not diff_text:
         raise HTTPException(status_code=400, detail="diff 内容不能为空")
-    impact = _build_diff_impact(project_id, diff_text)
-    pr_review = pr_review_service.build(project, diff_text, impact)
-    return incremental_learning_service.build(project, impact, pr_review)
+    filename = _safe_filename(project["name"]) + "-incremental-learning.md"
+    markdown = report_service.build_incremental_learning_report(
+        project,
+        _build_incremental_learning(project_id, diff_text),
+    )
+    return Response(
+        content=markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/projects/{project_id}/ask")
@@ -1119,6 +1135,15 @@ def _build_pr_review(project_id: str, diff_text: str) -> dict:
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     return pr_review_service.build(project, diff_text, _build_diff_impact(project_id, diff_text))
+
+
+def _build_incremental_learning(project_id: str, diff_text: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    impact = _build_diff_impact(project_id, diff_text)
+    pr_review = pr_review_service.build(project, diff_text, impact)
+    return incremental_learning_service.build(project, impact, pr_review)
 
 
 def _build_diff_impact(project_id: str, diff_text: str) -> dict:

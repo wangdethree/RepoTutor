@@ -177,6 +177,9 @@ def verify_v2_change_understanding_services(analysis, plan: dict) -> None:
     incremental = IncrementalLearningService().build(project, impact, review)
     assert incremental["source_checkpoints"]
     assert incremental["practice_tasks"]
+    incremental_markdown = ReportService().build_incremental_learning_report(project, incremental)
+    assert "增量学习建议" in incremental_markdown
+    assert "## 源码检查点" in incremental_markdown
 
 
 def verify_safe_zip() -> None:

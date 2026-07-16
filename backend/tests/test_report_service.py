@@ -184,6 +184,47 @@ def test_report_service_builds_pr_review_markdown() -> None:
     assert "## 面试复盘说法" in markdown
 
 
+def test_report_service_builds_incremental_learning_markdown() -> None:
+    markdown = ReportService().build_incremental_learning_report(
+        project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},
+        payload={
+            "title": "FastAPI Shop 增量学习建议",
+            "risk_level": "MEDIUM",
+            "change_summary": "本次变更涉及订单服务。",
+            "next_steps": ["先复习命中的学习课程。"],
+            "recommended_lessons": [
+                {
+                    "lesson_id": "lesson-1",
+                    "title": "Service 层业务调用链",
+                    "order_index": 5,
+                    "matched_files": ["app/services/order_service.py"],
+                    "reason": "本次 diff 命中该课程关联源码。",
+                }
+            ],
+            "source_checkpoints": [
+                {
+                    "file": "app/services/order_service.py",
+                    "kind": "changed",
+                    "checkpoint": "确认新增逻辑和接口边界。",
+                }
+            ],
+            "practice_tasks": [
+                {
+                    "title": "复述变更意图",
+                    "objective": "说明这次 diff 为什么改。",
+                    "acceptance": "能说出影响范围。",
+                }
+            ],
+            "questions_to_ask": ["这次修改有没有改变接口契约？"],
+        },
+    )
+
+    assert "# FastAPI Shop 增量学习建议" in markdown
+    assert "## 推荐复习课程" in markdown
+    assert "Service 层业务调用链" in markdown
+    assert "## 可以继续追问" in markdown
+
+
 def test_report_service_adds_improvement_suggestions_to_interview_markdown() -> None:
     markdown = ReportService().build_interview_report(
         project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},

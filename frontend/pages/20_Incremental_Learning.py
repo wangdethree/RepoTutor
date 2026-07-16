@@ -43,6 +43,13 @@ if st.button("生成增量学习建议", type="primary", disabled=not diff_text.
         )
         response.raise_for_status()
         st.session_state["incremental_learning_result"] = response.json()
+        markdown_response = requests.post(
+            f"{API_URL}/api/projects/{project_id}/incremental-learning.md",
+            json={"diff": diff_text},
+            timeout=60,
+        )
+        if markdown_response.status_code == 200:
+            st.session_state["incremental_learning_markdown"] = markdown_response.text
     except requests.RequestException as exc:
         st.error(f"生成增量学习建议失败：{exc}")
         st.stop()
@@ -57,6 +64,13 @@ metrics = st.columns(3)
 metrics[0].metric("风险", _risk_label(payload["risk_level"]))
 metrics[1].metric("推荐课程", len(payload["recommended_lessons"]))
 metrics[2].metric("源码检查点", len(payload["source_checkpoints"]))
+if st.session_state.get("incremental_learning_markdown"):
+    st.download_button(
+        "下载增量学习 Markdown",
+        data=st.session_state["incremental_learning_markdown"],
+        file_name=f"{project_id}-incremental-learning.md",
+        mime="text/markdown",
+    )
 st.write(payload["change_summary"])
 
 lesson_tab, source_tab, practice_tab, question_tab = st.tabs(["复习课程", "源码检查", "练习任务", "追问清单"])

@@ -16,7 +16,7 @@ if not project_id:
     st.info("请先在首页上传或选择项目。")
     st.stop()
 
-project_tab, lesson_tab, demo_tab = st.tabs(["项目报告", "课程报告", "演示讲稿"])
+project_tab, lesson_tab, demo_tab, change_tab = st.tabs(["项目报告", "课程报告", "演示讲稿", "变更报告"])
 
 with project_tab:
     try:
@@ -101,3 +101,60 @@ with demo_tab:
             st.markdown(demo_markdown)
         with demo_source_tab:
             st.code(demo_markdown, language="markdown")
+
+with change_tab:
+    sample_diff = """diff --git a/app/api/orders.py b/app/api/orders.py
+--- a/app/api/orders.py
++++ b/app/api/orders.py
+@@ -1,2 +1,3 @@
++include_coupon = True
+"""
+    change_diff = st.text_area("粘贴 git diff", value="", placeholder=sample_diff, height=220)
+    if st.button("生成变更报告", type="primary", disabled=not change_diff.strip()):
+        try:
+            pr_response = requests.post(
+                f"{API_URL}/api/projects/{project_id}/pr-review.md",
+                json={"diff": change_diff},
+                timeout=60,
+            )
+            pr_response.raise_for_status()
+            incremental_response = requests.post(
+                f"{API_URL}/api/projects/{project_id}/incremental-learning.md",
+                json={"diff": change_diff},
+                timeout=60,
+            )
+            incremental_response.raise_for_status()
+        except requests.RequestException as exc:
+            st.error(f"生成变更报告失败：{exc}")
+        else:
+            st.session_state["report_pr_review_markdown"] = pr_response.text
+            st.session_state["report_incremental_learning_markdown"] = incremental_response.text
+
+    pr_markdown = st.session_state.get("report_pr_review_markdown")
+    incremental_markdown = st.session_state.get("report_incremental_learning_markdown")
+    if pr_markdown or incremental_markdown:
+        download_cols = st.columns([1, 1, 4])
+        if pr_markdown:
+            download_cols[0].download_button(
+                "下载 PR 讲解包",
+                data=pr_markdown,
+                file_name=f"{project_id}-pr-review.md",
+                mime="text/markdown",
+            )
+        if incremental_markdown:
+            download_cols[1].download_button(
+                "下载增量学习建议",
+                data=incremental_markdown,
+                file_name=f"{project_id}-incremental-learning.md",
+                mime="text/markdown",
+            )
+
+        pr_tab, incremental_tab = st.tabs(["PR 讲解包", "增量学习建议"])
+        with pr_tab:
+            if pr_markdown:
+                st.markdown(pr_markdown)
+        with incremental_tab:
+            if incremental_markdown:
+                st.markdown(incremental_markdown)
+    else:
+        st.info("粘贴一次 git diff 后可生成 PR 讲解包和增量学习建议。")
