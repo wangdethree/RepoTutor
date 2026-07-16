@@ -19,6 +19,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.demo_readiness_service import DemoReadinessService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
@@ -39,6 +40,7 @@ repository = SQLiteRepository()
 analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
 report_service = ReportService()
+demo_readiness_service = DemoReadinessService()
 dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
@@ -103,6 +105,7 @@ def get_capabilities() -> dict:
             "architecture_diagrams": True,
             "dependency_graph_data": True,
             "diff_impact_analysis": True,
+            "demo_readiness": True,
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
@@ -462,6 +465,30 @@ def get_project_progress(project_id: str) -> dict:
     if not progress["plan_id"]:
         raise HTTPException(status_code=404, detail="请先生成学习路线")
     return progress
+
+
+@router.get("/projects/{project_id}/demo-readiness")
+def get_project_demo_readiness(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    plan = repository.get_learning_plan(project_id)
+    progress = repository.get_learning_progress(project_id)
+    diagrams = repository.get_diagrams(project_id) if analysis_payload else []
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
+    interview_readiness = _optional_interview_readiness(project_id, analysis_payload, plan, progress)
+    return demo_readiness_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        diagrams=diagrams,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+        interview_readiness=interview_readiness,
+    )
 
 
 @router.get("/projects/{project_id}/practice-progress")
@@ -863,6 +890,33 @@ def _interview_kit_with_records(project_id: str, kit: dict) -> dict:
     kit["mastered_question_count"] = mastered_count
     kit["question_mastery_rate"] = round(mastered_count / question_count * 100) if question_count else 0
     return kit
+
+
+def _optional_project_practice_progress(project_id: str, analysis_payload: dict | None, plan: dict | None) -> dict | None:
+    if not analysis_payload or not plan:
+        return None
+    return _build_project_practice_progress(project_id)
+
+
+def _optional_interview_readiness(
+    project_id: str,
+    analysis_payload: dict | None,
+    plan: dict | None,
+    progress: dict,
+) -> dict | None:
+    if not analysis_payload or not plan:
+        return None
+    profile = repository.get_profile(project_id) or {}
+    interview_kit = _interview_kit_with_records(
+        project_id,
+        interview_agent.generate(from_dict(analysis_payload), profile, progress),
+    )
+    return interview_readiness_service.build(
+        progress=progress,
+        practice_progress=_build_project_practice_progress(project_id),
+        quiz_results=repository.list_quiz_results_for_project(project_id),
+        interview_kit=interview_kit,
+    )
 
 
 def _build_project_practice_progress(project_id: str) -> dict:
