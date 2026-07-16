@@ -33,11 +33,28 @@ def test_report_service_builds_learning_markdown(tmp_path: Path) -> None:
         plan=plan,
         progress=repository.get_learning_progress(project_id),
         diagrams=repository.get_diagrams(project_id),
+        practice_progress={
+            "total_tasks": 3,
+            "completed_tasks": 1,
+            "remaining_tasks": 2,
+            "completion_rate": 33,
+            "lessons": [
+                {
+                    "order_index": 1,
+                    "lesson_title": plan["lessons"][0]["title"],
+                    "completed_task_count": 1,
+                    "task_count": 3,
+                    "pending_tasks": ["调用链复述", "改动影响演练"],
+                }
+            ],
+        },
     )
 
     assert "# FastAPI Shop 学习报告" in markdown
     assert "## 项目事实摘要" in markdown
     assert "## 学习路线进度" in markdown
+    assert "## 动手任务进度" in markdown
+    assert "调用链复述" in markdown
     assert "FastAPI 后端服务" in markdown
 
 

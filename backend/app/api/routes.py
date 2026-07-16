@@ -703,6 +703,7 @@ def _build_learning_report(project_id: str) -> str:
         plan=plan,
         progress=repository.get_learning_progress(project_id),
         diagrams=repository.get_diagrams(project_id),
+        practice_progress=_build_project_practice_progress(project_id),
     )
 
 

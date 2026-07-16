@@ -14,6 +14,7 @@ class ReportService:
         plan: dict,
         progress: dict,
         diagrams: list[dict],
+        practice_progress: dict | None = None,
     ) -> str:
         summary = analysis["summary"]
         lines = [
@@ -70,6 +71,31 @@ class ReportService:
             lines.append(
                 f"| {lesson['order_index']} | {lesson['title']} | {self._status_label(lesson['status'])} | {score} |"
             )
+
+        if practice_progress:
+            lines.extend(
+                [
+                    "",
+                    "## 动手任务进度",
+                    "",
+                    f"- 总任务：{practice_progress['total_tasks']}",
+                    f"- 已完成：{practice_progress['completed_tasks']}",
+                    f"- 待完成：{practice_progress['remaining_tasks']}",
+                    f"- 完成率：{practice_progress['completion_rate']}%",
+                    "",
+                    "| 序号 | 课程 | 任务完成 | 待练习 |",
+                    "| ---: | --- | ---: | --- |",
+                ]
+            )
+            for lesson in practice_progress.get("lessons", []):
+                pending_tasks = "、".join(lesson.get("pending_tasks", [])[:2]) or "已完成"
+                lines.append(
+                    "| "
+                    f"{lesson['order_index']} | "
+                    f"{lesson['lesson_title']} | "
+                    f"{lesson['completed_task_count']}/{lesson['task_count']} | "
+                    f"{pending_tasks} |"
+                )
 
         lines.extend(["", "## 架构图清单", ""])
         if diagrams:
