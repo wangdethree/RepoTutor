@@ -512,6 +512,10 @@ async def download_lesson_report(lesson_id: str) -> Response:
             analysis=analysis_payload,
             quiz=quiz,
             quiz_results=repository.list_quiz_results_for_lesson(lesson_id),
+            practice_tasks=_practice_tasks_with_records(
+                lesson_id,
+                practice_task_service.build(lesson, quiz),
+            ),
         ),
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

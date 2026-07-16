@@ -12,6 +12,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.main import app
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.services.analysis_service import AnalysisService
+from app.services.practice_task_service import PracticeTaskService
 from app.services.report_service import ReportService
 
 
@@ -69,6 +70,10 @@ def test_report_service_builds_lesson_markdown(tmp_path: Path) -> None:
 
     lesson = TeachingAgent().generate(AnalysisService().analyze(project_id, Path(project["root_path"])), plan["lessons"][0])
     quiz = QuizAgent().generate(AnalysisService().analyze(project_id, Path(project["root_path"])), lesson)
+    practice_tasks = PracticeTaskService().build(lesson, quiz)
+    practice_tasks["tasks"][0]["completed"] = True
+    practice_tasks["completed_task_count"] = 1
+    practice_tasks["completion_rate"] = 33
 
     markdown = ReportService().build_lesson_report(
         project=project,
@@ -76,11 +81,15 @@ def test_report_service_builds_lesson_markdown(tmp_path: Path) -> None:
         analysis=analysis,
         quiz=quiz,
         quiz_results=[],
+        practice_tasks=practice_tasks,
     )
 
     assert f"# {lesson['title']}" in markdown
     assert "## 核心代码位置" in markdown
     assert "## 调用关系" in markdown
+    assert "## 动手任务" in markdown
+    assert "源码定位走读" in markdown
+    assert "状态：已完成" in markdown
     assert "## 测验题" in markdown
 
 
@@ -113,6 +122,7 @@ def test_lesson_report_api_returns_markdown_download(tmp_path: Path, monkeypatch
     assert response.headers["content-type"].startswith("text/markdown")
     assert "lesson-report.md" in response.headers["content-disposition"]
     assert "## 测验题" in response.text
+    assert "## 动手任务" in response.text
 
 
 def _prepared_repository(tmp_path: Path) -> tuple[SQLiteRepository, str]:

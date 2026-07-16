@@ -115,6 +115,7 @@ class ReportService:
         analysis: dict,
         quiz: dict,
         quiz_results: list[dict] | None = None,
+        practice_tasks: dict | None = None,
     ) -> str:
         """导出单节课程，内容全部来自已生成课程和静态分析事实。"""
 
@@ -198,6 +199,10 @@ class ReportService:
         )
         lines.extend(self._quiz_lines(quiz))
 
+        if practice_tasks:
+            lines.extend(["", "## 动手任务", ""])
+            lines.extend(self._practice_task_lines(practice_tasks))
+
         lines.extend(["", "## 最近测验结果", ""])
         lines.extend(self._quiz_result_lines(quiz_results or []))
         return "\n".join(lines) + "\n"
@@ -280,4 +285,52 @@ class ReportService:
             lines.append(f"- 缺失点：{'; '.join(latest['missing_points'])}")
         if latest.get("misconceptions"):
             lines.append(f"- 误区：{'; '.join(latest['misconceptions'])}")
+        return lines
+
+    def _practice_task_lines(self, practice_tasks: dict) -> list[str]:
+        tasks = practice_tasks.get("tasks", [])
+        if not tasks:
+            return ["- 暂无动手任务。"]
+
+        lines = [
+            f"- 任务数：{practice_tasks.get('task_count', 0)}",
+            f"- 已完成：{practice_tasks.get('completed_task_count', 0)}",
+            f"- 完成率：{practice_tasks.get('completion_rate', 0)}%",
+            "",
+        ]
+        for index, task in enumerate(tasks, start=1):
+            status = "已完成" if task.get("completed") else "未完成"
+            lines.extend(
+                [
+                    f"### {index}. {task['title']}",
+                    "",
+                    f"- 状态：{status}",
+                    f"- 类型：{task.get('task_type', '-')}",
+                    f"- 预计时间：{task.get('estimated_minutes', 0)} 分钟",
+                    f"- 目标：{task.get('objective', '-')}",
+                    "",
+                    "#### 目标文件",
+                    "",
+                ]
+            )
+            target_files = [f"`{file_path}`" for file_path in task.get("target_files", [])]
+            lines.extend(self._markdown_list(target_files, "- 暂无目标文件。"))
+            lines.extend(["", "#### 源码锚点", ""])
+            references = [
+                (
+                    f"`{reference['file']}:{reference['line']}` "
+                    f"{reference.get('kind', 'source')} "
+                    f"{reference.get('name', '')}"
+                ).strip()
+                for reference in task.get("references", [])
+            ]
+            lines.extend(self._markdown_list(references, "- 暂无源码锚点。"))
+            lines.extend(["", "#### 操作步骤", ""])
+            lines.extend(self._markdown_list(task.get("steps", []), "- 暂无操作步骤。"))
+            lines.extend(["", "#### 验收检查", ""])
+            lines.extend(self._markdown_list(task.get("acceptance_checks", []), "- 暂无验收检查。"))
+            if task.get("risk_notes"):
+                lines.extend(["", "#### 注意事项", ""])
+                lines.extend(self._markdown_list(task["risk_notes"], "- 暂无注意事项。"))
+            lines.append("")
         return lines
