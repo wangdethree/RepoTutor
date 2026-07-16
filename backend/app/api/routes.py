@@ -22,6 +22,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
+from app.services.interview_readiness_service import InterviewReadinessService
 from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
@@ -42,6 +43,7 @@ dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
 practice_task_service = PracticeTaskService()
+interview_readiness_service = InterviewReadinessService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
@@ -117,6 +119,7 @@ def get_capabilities() -> dict:
             "quiz_assessment": True,
             "interview_prep": True,
             "interview_markdown_export": True,
+            "interview_readiness": True,
             "remedial_lessons": True,
             "knowledge_cards": True,
             "practice_tasks": True,
@@ -496,6 +499,27 @@ def download_interview_kit(project_id: str) -> Response:
         content=_build_interview_report(project_id),
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/interview-readiness")
+def get_interview_readiness(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    progress = repository.get_learning_progress(project_id)
+    if not progress["plan_id"]:
+        raise HTTPException(status_code=404, detail="请先生成学习路线")
+    profile = repository.get_profile(project_id) or {}
+    interview_kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
+    return interview_readiness_service.build(
+        progress=progress,
+        practice_progress=_build_project_practice_progress(project_id),
+        quiz_results=repository.list_quiz_results_for_project(project_id),
+        interview_kit=interview_kit,
     )
 
 

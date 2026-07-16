@@ -8,6 +8,23 @@ import streamlit as st
 
 API_URL = os.getenv("REPO_TUTOR_API_URL", "http://localhost:8000")
 
+
+def _readiness_level_label(level: str) -> str:
+    return {
+        "READY": "可进入面试演练",
+        "ALMOST_READY": "接近可面试",
+        "NEEDS_WORK": "还需补强",
+    }.get(level, level)
+
+
+def _checklist_status_label(status: str) -> str:
+    return {
+        "DONE": "已完成",
+        "IN_PROGRESS": "进行中",
+        "TODO": "待补齐",
+    }.get(status, status)
+
+
 st.set_page_config(page_title="面试准备", page_icon="RT", layout="wide")
 st.title("面试准备")
 
@@ -32,6 +49,13 @@ try:
 except requests.RequestException:
     download_response = None
 
+try:
+    readiness_response = requests.get(f"{API_URL}/api/projects/{project_id}/interview-readiness", timeout=30)
+    readiness_response.raise_for_status()
+    readiness = readiness_response.json()
+except requests.RequestException:
+    readiness = None
+
 metrics = st.columns(4)
 metrics[0].metric("高频问题", len(kit["questions"]))
 metrics[1].metric("源码证据", len(kit["core_references"]))
@@ -45,6 +69,47 @@ if download_response and download_response.status_code == 200:
     )
 else:
     metrics[3].button("下载面试材料", disabled=True)
+
+if readiness:
+    st.subheader("面试准备度")
+    readiness_cols = st.columns(5)
+    readiness_cols[0].metric("准备度", f"{readiness['readiness_score']}%")
+    readiness_cols[1].metric("状态", _readiness_level_label(readiness["readiness_level"]))
+    breakdown = readiness["score_breakdown"]
+    readiness_cols[2].metric("课程", f"{breakdown['course_completion']}%")
+    readiness_cols[3].metric("练习", f"{breakdown['practice_completion']}%")
+    readiness_cols[4].metric("测验", f"{breakdown['quiz_average']}%")
+    st.progress(readiness["readiness_score"] / 100)
+
+    if readiness["recommended_actions"]:
+        st.write("下一步")
+        for action in readiness["recommended_actions"]:
+            st.write(f"- {action}")
+
+    with st.expander("准备清单", expanded=True):
+        for item in readiness["checklist"]:
+            cols = st.columns([1, 3, 4])
+            cols[0].write(_checklist_status_label(item["status"]))
+            cols[1].write(item["title"])
+            cols[2].write(item["detail"])
+
+    weak_lessons = readiness.get("weak_lessons", [])
+    pending_practice_lessons = readiness.get("pending_practice_lessons", [])
+    if weak_lessons or pending_practice_lessons:
+        st.subheader("优先补强")
+        for lesson in weak_lessons:
+            cols = st.columns([4, 1])
+            cols[0].warning(f"{lesson['order_index']}. {lesson['title']} 需要复习")
+            if cols[1].button("去复习", key=f"interview-review-{lesson['id']}"):
+                st.session_state["lesson_id"] = lesson["id"]
+                st.switch_page("pages/4_Lesson_Quiz.py")
+        for lesson in pending_practice_lessons:
+            cols = st.columns([4, 1])
+            pending = "；".join(lesson["pending_tasks"][:2])
+            cols[0].info(f"{lesson['order_index']}. {lesson['lesson_title']} 待练习：{pending}")
+            if cols[1].button("去练习", key=f"interview-practice-{lesson['lesson_id']}"):
+                st.session_state["lesson_id"] = lesson["lesson_id"]
+                st.switch_page("pages/4_Lesson_Quiz.py")
 
 left, right = st.columns([1, 1])
 with left:
