@@ -116,6 +116,7 @@ def get_capabilities() -> dict:
             "remedial_lessons": True,
             "knowledge_cards": True,
             "practice_tasks": True,
+            "practice_progress": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -454,6 +455,11 @@ def get_project_progress(project_id: str) -> dict:
     return progress
 
 
+@router.get("/projects/{project_id}/practice-progress")
+def get_project_practice_progress(project_id: str) -> dict:
+    return _build_project_practice_progress(project_id)
+
+
 @router.get("/projects/{project_id}/quiz-results")
 def list_project_quiz_results(project_id: str) -> dict:
     project = repository.get_project(project_id)
@@ -743,6 +749,75 @@ def _practice_tasks_with_records(lesson_id: str, tasks_payload: dict) -> dict:
     tasks_payload["completed_task_count"] = completed_count
     tasks_payload["completion_rate"] = round(completed_count / tasks_payload["task_count"] * 100) if tasks_payload["task_count"] else 0
     return tasks_payload
+
+
+def _build_project_practice_progress(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    plan = repository.get_learning_plan(project_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="请先生成学习路线")
+
+    analysis = from_dict(analysis_payload)
+    lesson_items = []
+    total_tasks = 0
+    completed_tasks = 0
+    total_estimated_minutes = 0
+
+    for lesson in plan.get("lessons", []):
+        lesson_payload = (
+            lesson
+            if lesson.get("core_code_locations")
+            else teaching_agent.generate(analysis, lesson)
+        )
+        lesson_payload = _preserve_lesson_progress(lesson, lesson_payload)
+        quiz = repository.get_quiz(f"quiz-{lesson['id']}") or quiz_agent.generate(analysis, lesson_payload)
+        tasks_payload = _practice_tasks_with_records(
+            lesson["id"],
+            practice_task_service.build(lesson_payload, quiz),
+        )
+        lesson_estimated_minutes = sum(task.get("estimated_minutes", 0) for task in tasks_payload["tasks"])
+
+        total_tasks += tasks_payload["task_count"]
+        completed_tasks += tasks_payload["completed_task_count"]
+        total_estimated_minutes += lesson_estimated_minutes
+        lesson_items.append(
+            {
+                "lesson_id": lesson["id"],
+                "lesson_title": lesson["title"],
+                "order_index": lesson["order_index"],
+                "status": lesson.get("status", "NOT_STARTED"),
+                "task_count": tasks_payload["task_count"],
+                "completed_task_count": tasks_payload["completed_task_count"],
+                "completion_rate": tasks_payload["completion_rate"],
+                "estimated_minutes": lesson_estimated_minutes,
+                "pending_tasks": [
+                    task["title"]
+                    for task in tasks_payload["tasks"]
+                    if not task.get("completed")
+                ],
+            }
+        )
+
+    next_practice_lesson = next(
+        (lesson for lesson in lesson_items if lesson["completed_task_count"] < lesson["task_count"]),
+        None,
+    )
+    return {
+        "project_id": project_id,
+        "total_lessons": len(lesson_items),
+        "total_tasks": total_tasks,
+        "completed_tasks": completed_tasks,
+        "remaining_tasks": total_tasks - completed_tasks,
+        "completion_rate": round(completed_tasks / total_tasks * 100) if total_tasks else 0,
+        "total_estimated_minutes": total_estimated_minutes,
+        "next_practice_lesson_id": next_practice_lesson["lesson_id"] if next_practice_lesson else "",
+        "lessons": lesson_items,
+    }
 
 
 def _safe_filename(value: str) -> str:

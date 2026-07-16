@@ -26,6 +26,12 @@ def _next_action_label(action: str) -> str:
     }.get(action, action)
 
 
+def _pending_task_label(tasks: list[str]) -> str:
+    if not tasks:
+        return "已完成"
+    return "、".join(tasks[:2]) + ("..." if len(tasks) > 2 else "")
+
+
 st.set_page_config(page_title="学习进度", page_icon="RT", layout="wide")
 st.title("学习进度")
 
@@ -61,6 +67,54 @@ if next_lesson_id:
         if cols[1].button("继续学习", type="primary"):
             st.session_state["lesson_id"] = next_lesson_id
             st.switch_page("pages/4_Lesson_Quiz.py")
+
+try:
+    practice_response = requests.get(
+        f"{API_URL}/api/projects/{project_id}/practice-progress",
+        timeout=30,
+    )
+    practice_response.raise_for_status()
+    practice_progress = practice_response.json()
+except requests.RequestException as exc:
+    practice_progress = None
+    st.warning(f"读取动手任务进度失败：{exc}")
+
+if practice_progress:
+    st.subheader("动手任务进度")
+    task_metrics = st.columns(4)
+    task_metrics[0].metric("任务完成率", f"{practice_progress['completion_rate']}%")
+    task_metrics[1].metric("已完成任务", practice_progress["completed_tasks"])
+    task_metrics[2].metric("待完成任务", practice_progress["remaining_tasks"])
+    task_metrics[3].metric("预计练习", f"{practice_progress['total_estimated_minutes']} 分钟")
+    st.progress(practice_progress["completion_rate"] / 100)
+
+    next_practice_lesson_id = practice_progress.get("next_practice_lesson_id")
+    if next_practice_lesson_id:
+        next_practice_lesson = next(
+            (lesson for lesson in practice_progress["lessons"] if lesson["lesson_id"] == next_practice_lesson_id),
+            None,
+        )
+        if next_practice_lesson:
+            cols = st.columns([4, 1])
+            cols[0].write(f"下一组任务：{next_practice_lesson['lesson_title']}")
+            if cols[1].button("继续练习", key="continue-practice", type="primary"):
+                st.session_state["lesson_id"] = next_practice_lesson_id
+                st.switch_page("pages/4_Lesson_Quiz.py")
+
+    st.dataframe(
+        [
+            {
+                "序号": lesson["order_index"],
+                "课程": lesson["lesson_title"],
+                "状态": _status_label(lesson["status"]),
+                "完成任务": f"{lesson['completed_task_count']}/{lesson['task_count']}",
+                "完成率": f"{lesson['completion_rate']}%",
+                "待练习": _pending_task_label(lesson["pending_tasks"]),
+            }
+            for lesson in practice_progress["lessons"]
+        ],
+        use_container_width=True,
+    )
 
 st.subheader("课程状态")
 st.dataframe(
