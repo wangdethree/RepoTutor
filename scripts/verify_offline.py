@@ -19,6 +19,9 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.services.demo_readiness_service import DemoReadinessService
 from app.services.demo_script_service import DemoScriptService
 from app.services.analysis_service import AnalysisService
+from app.services.diff_impact_service import DiffImpactService
+from app.services.incremental_learning_service import IncrementalLearningService
+from app.services.pr_review_service import PRReviewService
 from app.services.project_dashboard_service import ProjectDashboardService
 from app.services.project_improvement_service import ProjectImprovementService
 from app.services.report_service import ReportService
@@ -68,6 +71,7 @@ def main() -> None:
     assert remediation["retry_quiz"]["questions"]
 
     verify_v1_showcase_services(analysis.to_dict(), plan, [diagram.__dict__ for diagram in diagrams], result)
+    verify_v2_change_understanding_services(analysis, plan)
 
     print("offline verification passed")
     print(f"routes={len(analysis.routes)} models={len(analysis.models)} diagrams={len(diagrams)} lessons={plan['total_lessons']}")
@@ -149,6 +153,30 @@ def verify_v1_showcase_services(analysis_payload: dict, plan: dict, diagrams: li
     markdown = ReportService().build_demo_script_report(project, script)
     assert "演示讲稿" in markdown
     assert "## 演示顺序" in markdown
+
+
+def verify_v2_change_understanding_services(analysis, plan: dict) -> None:
+    project = {"id": "demo", "name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"}
+    diff_text = """diff --git a/app/api/orders.py b/app/api/orders.py
+--- a/app/api/orders.py
++++ b/app/api/orders.py
+@@ -1,2 +1,3 @@
++include_coupon = True
+"""
+    impact = DiffImpactService().analyze(analysis, diff_text, plan=plan)
+    assert impact["summary"]["changed_file_count"] == 1
+
+    review = PRReviewService().build(project, diff_text, impact)
+    assert review["test_plan"]
+    assert review["interview_talking_points"]
+
+    markdown = ReportService().build_pr_review_report(project, review)
+    assert "PR 讲解包" in markdown
+    assert "## 评审清单" in markdown
+
+    incremental = IncrementalLearningService().build(project, impact, review)
+    assert incremental["source_checkpoints"]
+    assert incremental["practice_tasks"]
 
 
 def verify_safe_zip() -> None:
