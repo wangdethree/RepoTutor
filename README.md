@@ -32,6 +32,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 动手任务支持完成状态记录，并可从目标文件和源码锚点一键跳转到源码浏览页。
 - 学习进度页汇总项目级动手任务完成率、待完成任务和下一组练习入口。
 - 演示准备页汇总分析、架构图、学习路线、进度、练习、面试和报告导出闭环。
+- 演示讲稿页把项目事实、学习闭环、演示准备度和后续优化计划整理成可复述的展示顺序。
 - 项目改进建议页基于静态分析、学习进度、动手练习和测验记录生成 V1.2 优化任务，并提供可直接复述的面试说法。
 - 项目改进建议会进入学习报告和面试材料导出，形成 V1.3 面试包装素材。
 - LangGraph 项目导入工作流：分析、架构图、学习画像、学习路线节点化编排，并记录 Agent 运行轨迹。
@@ -136,7 +137,8 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 13. 进入报告导出页面，预览并下载项目学习报告或单节课程报告。
 14. 进入演示准备页面，确认演示闭环是否已经达到可展示状态。
 15. 进入项目改进建议页面，查看测试、接口契约、学习短板和面试包装的下一步任务。
-16. 下载项目报告或面试材料，把改进建议作为“后续优化计划”讲述素材。
+16. 进入演示讲稿页面，按开场、架构、学习闭环、准备状态、后续优化和收尾顺序演练。
+17. 下载项目报告或面试材料，把改进建议作为“后续优化计划”讲述素材。
 
 ## API 摘要
 
@@ -168,6 +170,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `GET /api/projects/{project_id}/learning-plan`
 - `GET /api/projects/{project_id}/progress`
 - `GET /api/projects/{project_id}/demo-readiness`
+- `GET /api/projects/{project_id}/demo-script`
 - `GET /api/projects/{project_id}/improvement-suggestions`
 - `GET /api/projects/{project_id}/practice-progress`
 - `GET /api/projects/{project_id}/quiz-results`

@@ -20,6 +20,7 @@ from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
 from app.services.demo_readiness_service import DemoReadinessService
+from app.services.demo_script_service import DemoScriptService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
@@ -42,6 +43,7 @@ analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
 report_service = ReportService()
 demo_readiness_service = DemoReadinessService()
+demo_script_service = DemoScriptService()
 dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
@@ -108,6 +110,7 @@ def get_capabilities() -> dict:
             "dependency_graph_data": True,
             "diff_impact_analysis": True,
             "demo_readiness": True,
+            "demo_script": True,
             "improvement_suggestions": True,
             "improvement_report_export": True,
             "langgraph_workflow": True,
@@ -492,6 +495,48 @@ def get_project_demo_readiness(project_id: str) -> dict:
         practice_progress=practice_progress,
         quiz_results=quiz_results,
         interview_readiness=interview_readiness,
+    )
+
+
+@router.get("/projects/{project_id}/demo-script")
+def get_project_demo_script(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    plan = repository.get_learning_plan(project_id)
+    progress = repository.get_learning_progress(project_id)
+    diagrams = repository.get_diagrams(project_id)
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
+    interview_readiness = _optional_interview_readiness(project_id, analysis_payload, plan, progress)
+    demo_readiness = demo_readiness_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        diagrams=diagrams,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+        interview_readiness=interview_readiness,
+    )
+    improvement_suggestions = project_improvement_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+    )
+    return demo_script_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        demo_readiness=demo_readiness,
+        improvement_suggestions=improvement_suggestions,
     )
 
 
