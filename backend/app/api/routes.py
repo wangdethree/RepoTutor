@@ -111,6 +111,8 @@ def get_capabilities() -> dict:
             "learning_progress": True,
             "markdown_reports": True,
             "lesson_markdown_reports": True,
+            "lesson_report_practice_tasks": True,
+            "report_page_lesson_download": True,
             "review_center": True,
             "quiz_assessment": True,
             "interview_prep": True,

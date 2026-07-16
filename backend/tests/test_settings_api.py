@@ -58,4 +58,6 @@ def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypat
     assert capabilities["features"]["source_browser"] is True
     assert capabilities["features"]["source_browser_return_to_lesson"] is True
     assert capabilities["features"]["practice_task_source_links"] is True
+    assert capabilities["features"]["lesson_report_practice_tasks"] is True
+    assert capabilities["features"]["report_page_lesson_download"] is True
     assert capabilities["llm"]["configured"] is False
