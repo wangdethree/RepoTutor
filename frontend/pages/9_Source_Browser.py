@@ -16,6 +16,10 @@ if not project_id:
     st.info("请先在首页上传或选择项目。")
     st.stop()
 
+if st.session_state.get("lesson_id"):
+    if st.button("返回课程"):
+        st.switch_page("pages/4_Lesson_Quiz.py")
+
 try:
     response = requests.get(f"{API_URL}/api/projects/{project_id}/source-files", timeout=30)
     response.raise_for_status()
