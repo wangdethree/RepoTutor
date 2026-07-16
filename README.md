@@ -72,6 +72,8 @@ python3 scripts/smoke_http.py
 python3 scripts/e2e_demo_inprocess.py
 ```
 
+`scripts/verify_offline.py` 会覆盖静态分析、架构图、学习路线、测验、补充讲解、演示准备、项目仪表盘、改进建议和演示讲稿导出。
+
 如果要验证已启动后端的真实 HTTP 闭环：
 
 ```bash

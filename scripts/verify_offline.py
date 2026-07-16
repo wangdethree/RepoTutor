@@ -16,7 +16,12 @@ from app.agents.qa_agent import QAAgent
 from app.agents.quiz_agent import QuizAgent
 from app.agents.remediation_agent import RemediationAgent
 from app.diagrams.architecture_builder import build_all_diagrams
+from app.services.demo_readiness_service import DemoReadinessService
+from app.services.demo_script_service import DemoScriptService
 from app.services.analysis_service import AnalysisService
+from app.services.project_dashboard_service import ProjectDashboardService
+from app.services.project_improvement_service import ProjectImprovementService
+from app.services.report_service import ReportService
 from app.utils.safe_zip import ZipSafetyError, safe_extract_zip
 
 
@@ -62,8 +67,88 @@ def main() -> None:
     assert remediation["fact_checked"] is True
     assert remediation["retry_quiz"]["questions"]
 
+    verify_v1_showcase_services(analysis.to_dict(), plan, [diagram.__dict__ for diagram in diagrams], result)
+
     print("offline verification passed")
     print(f"routes={len(analysis.routes)} models={len(analysis.models)} diagrams={len(diagrams)} lessons={plan['total_lessons']}")
+
+
+def verify_v1_showcase_services(analysis_payload: dict, plan: dict, diagrams: list[dict], quiz_result: dict) -> None:
+    project = {"id": "demo", "name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"}
+    progress = {
+        "plan_id": plan["id"],
+        "total_lessons": plan["total_lessons"],
+        "completed_lessons": 2,
+        "needs_review_lessons": 0,
+        "completion_rate": 80,
+        "next_action": "CONTINUE_NEXT_LESSON",
+        "lessons": [
+            {
+                "id": lesson["id"],
+                "title": lesson["title"],
+                "order_index": lesson["order_index"],
+                "status": "COMPLETED" if lesson["order_index"] <= 2 else "NOT_STARTED",
+                "related_files": lesson.get("related_files", []),
+            }
+            for lesson in plan["lessons"]
+        ],
+    }
+    practice_progress = {
+        "completion_rate": 80,
+        "total_tasks": 6,
+        "completed_tasks": 5,
+        "remaining_tasks": 1,
+        "lessons": [],
+    }
+    quiz_results = [{"score": quiz_result["score"]}]
+    interview_readiness = {"readiness_score": 82}
+
+    demo_readiness = DemoReadinessService().build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        diagrams=diagrams,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+        interview_readiness=interview_readiness,
+    )
+    assert demo_readiness["readiness_score"] >= 80
+
+    improvements = ProjectImprovementService().build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+    )
+    assert "suggestions" in improvements
+
+    dashboard = ProjectDashboardService().build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        interview_readiness=interview_readiness,
+        demo_readiness=demo_readiness,
+        improvement_suggestions=improvements,
+    )
+    assert dashboard["overall_score"] > 0
+    assert len(dashboard["dimensions"]) == 6
+
+    script = DemoScriptService().build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        demo_readiness=demo_readiness,
+        improvement_suggestions=improvements,
+    )
+    markdown = ReportService().build_demo_script_report(project, script)
+    assert "演示讲稿" in markdown
+    assert "## 演示顺序" in markdown
 
 
 def verify_safe_zip() -> None:
