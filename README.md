@@ -13,7 +13,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - 可解释文件重要度评分与文件级依赖图。
 - 提供结构化依赖图数据 API，前端可按模块类型、重要度、核心文件和关键词筛选节点与依赖边。
 - 支持粘贴 git diff 做静态影响分析，定位受影响文件、相关路由和需复习课程。
-- V2 增加 PR 讲解包，根据 diff 影响分析生成评审清单、测试计划、学习影响和面试复盘说法。
+- V2 增加 PR 讲解包，根据 diff 影响分析生成评审清单、测试计划、学习影响和面试复盘说法，并支持 Markdown 导出。
 - Mermaid / PlantUML 架构图源码生成：分层架构、组件图、类图、ER 图、时序图、部署图、依赖图。
 - 根据用户画像生成 5 到 10 节学习路线。
 - 学习画像支持多目标选择，并兼容旧版单目标 `learning_goal` 数据。
@@ -165,6 +165,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 - `GET /api/projects/{project_id}/dependency-graph`
 - `POST /api/projects/{project_id}/diff-impact`
 - `POST /api/projects/{project_id}/pr-review`
+- `POST /api/projects/{project_id}/pr-review.md`
 - `POST /api/projects/{project_id}/ask`
 - `POST /api/projects/{project_id}/agent-runs/onboarding`
 - `GET /api/projects/{project_id}/agent-runs`

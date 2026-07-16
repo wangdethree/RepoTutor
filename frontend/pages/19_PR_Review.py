@@ -50,6 +50,13 @@ if st.button("生成 PR 讲解包", type="primary", disabled=not diff_text.strip
         )
         response.raise_for_status()
         st.session_state["pr_review_result"] = response.json()
+        markdown_response = requests.post(
+            f"{API_URL}/api/projects/{project_id}/pr-review.md",
+            json={"diff": diff_text},
+            timeout=60,
+        )
+        if markdown_response.status_code == 200:
+            st.session_state["pr_review_markdown"] = markdown_response.text
     except requests.RequestException as exc:
         st.error(f"生成 PR 讲解包失败：{exc}")
         st.stop()
@@ -65,6 +72,14 @@ metrics[0].metric("风险", _risk_label(review["risk_level"]))
 metrics[1].metric("新增行", review["line_stats"]["additions"])
 metrics[2].metric("删除行", review["line_stats"]["deletions"])
 metrics[3].metric("变更行", review["line_stats"]["total_changed_lines"])
+
+if st.session_state.get("pr_review_markdown"):
+    st.download_button(
+        "下载 PR 讲解 Markdown",
+        data=st.session_state["pr_review_markdown"],
+        file_name=f"{project_id}-pr-review.md",
+        mime="text/markdown",
+    )
 
 st.write(review["change_summary"])
 st.warning(review["merge_advice"])

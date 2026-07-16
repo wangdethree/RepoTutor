@@ -115,6 +115,7 @@ def get_capabilities() -> dict:
             "dependency_graph_data": True,
             "diff_impact_analysis": True,
             "pr_review_pack": True,
+            "pr_review_markdown_export": True,
             "demo_readiness": True,
             "demo_script": True,
             "demo_script_markdown_export": True,
@@ -427,21 +428,26 @@ def analyze_diff_impact(project_id: str, payload: dict) -> dict:
 
 @router.post("/projects/{project_id}/pr-review")
 def build_pr_review(project_id: str, payload: dict) -> dict:
-    project = repository.get_project(project_id)
-    analysis_payload = repository.get_analysis(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="项目不存在")
-    if not analysis_payload:
-        raise HTTPException(status_code=404, detail="请先分析项目")
     diff_text = str(payload.get("diff", "")).strip()
     if not diff_text:
         raise HTTPException(status_code=400, detail="diff 内容不能为空")
-    impact = diff_impact_service.analyze(
-        from_dict(analysis_payload),
-        diff_text,
-        plan=repository.get_learning_plan(project_id),
+    return _build_pr_review(project_id, diff_text)
+
+
+@router.post("/projects/{project_id}/pr-review.md")
+def download_pr_review(project_id: str, payload: dict) -> Response:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    diff_text = str(payload.get("diff", "")).strip()
+    if not diff_text:
+        raise HTTPException(status_code=400, detail="diff 内容不能为空")
+    filename = _safe_filename(project["name"]) + "-pr-review.md"
+    return Response(
+        content=report_service.build_pr_review_report(project, _build_pr_review(project_id, diff_text)),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-    return pr_review_service.build(project, diff_text, impact)
 
 
 @router.post("/projects/{project_id}/ask")
@@ -1097,6 +1103,21 @@ def _build_project_demo_script(project_id: str) -> dict:
         demo_readiness=demo_readiness,
         improvement_suggestions=improvement_suggestions,
     )
+
+
+def _build_pr_review(project_id: str, diff_text: str) -> dict:
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    impact = diff_impact_service.analyze(
+        from_dict(analysis_payload),
+        diff_text,
+        plan=repository.get_learning_plan(project_id),
+    )
+    return pr_review_service.build(project, diff_text, impact)
 
 
 async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict, dict]:

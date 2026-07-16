@@ -145,6 +145,45 @@ def test_demo_script_api_returns_markdown_download(tmp_path: Path, monkeypatch) 
     assert "## 收尾句" in response.text
 
 
+def test_report_service_builds_pr_review_markdown() -> None:
+    markdown = ReportService().build_pr_review_report(
+        project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},
+        review={
+            "title": "FastAPI Shop PR 讲解包",
+            "risk_level": "MEDIUM",
+            "line_stats": {"additions": 2, "deletions": 1},
+            "change_summary": "本次变更涉及 1 个文件。",
+            "merge_advice": "可以进入评审。",
+            "affected_surface": {
+                "changed_files": ["app/api/orders.py"],
+                "impacted_files": ["app/services/order_service.py"],
+                "routes": ["POST /orders"],
+            },
+            "review_checklist": [
+                {
+                    "title": "回归相关 API 路由",
+                    "status": "NEEDS_CHECK",
+                    "action": "确认请求参数和响应结构。",
+                }
+            ],
+            "test_plan": ["补充订单接口回归测试。"],
+            "learning_impacts": [
+                {
+                    "order_index": 2,
+                    "title": "路由注册与请求分发",
+                    "matched_files": ["app/api/orders.py"],
+                }
+            ],
+            "interview_talking_points": ["我会沿着依赖图找到受影响模块。"],
+        },
+    )
+
+    assert "# FastAPI Shop PR 讲解包" in markdown
+    assert "## 评审清单" in markdown
+    assert "补充订单接口回归测试" in markdown
+    assert "## 面试复盘说法" in markdown
+
+
 def test_report_service_adds_improvement_suggestions_to_interview_markdown() -> None:
     markdown = ReportService().build_interview_report(
         project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},

@@ -311,6 +311,67 @@ class ReportService:
         lines.extend(["", "## 收尾句", "", script.get("closing_sentence", "")])
         return "\n".join(lines) + "\n"
 
+    def build_pr_review_report(self, project: dict, review: dict) -> str:
+        """导出 PR 讲解包，可直接复制到 PR 描述或面试复盘材料。"""
+
+        lines = [
+            f"# {review['title']}",
+            "",
+            f"- 生成时间：{datetime.now(timezone.utc).isoformat()}",
+            f"- 项目：{project['name']}",
+            f"- 原始文件：{project['original_filename']}",
+            f"- 风险：{self._risk_label(review.get('risk_level', 'LOW'))}",
+            f"- 新增行：{review.get('line_stats', {}).get('additions', 0)}",
+            f"- 删除行：{review.get('line_stats', {}).get('deletions', 0)}",
+            "",
+            "## 变更摘要",
+            "",
+            review.get("change_summary", ""),
+            "",
+            "## 合并建议",
+            "",
+            review.get("merge_advice", ""),
+            "",
+            "## 影响面",
+            "",
+        ]
+        surface = review.get("affected_surface", {})
+        lines.extend(["### 变更文件", ""])
+        lines.extend(self._markdown_list([f"`{path}`" for path in surface.get("changed_files", [])], "- 暂无变更文件。"))
+        lines.extend(["", "### 受影响文件", ""])
+        lines.extend(self._markdown_list([f"`{path}`" for path in surface.get("impacted_files", [])], "- 暂无受影响文件。"))
+        lines.extend(["", "### 相关路由", ""])
+        lines.extend(self._markdown_list(surface.get("routes", []), "- 暂无相关路由。"))
+
+        lines.extend(["", "## 评审清单", "", "| 项目 | 状态 | 动作 |", "| --- | --- | --- |"])
+        for item in review.get("review_checklist", []):
+            lines.append(
+                "| "
+                f"{self._table_cell(item['title'])} | "
+                f"{self._review_status_label(item['status'])} | "
+                f"{self._table_cell(item['action'])} |"
+            )
+        if not review.get("review_checklist"):
+            lines.append("| - | - | 暂无评审清单 |")
+
+        lines.extend(["", "## 测试计划", ""])
+        lines.extend(self._markdown_list(review.get("test_plan", []), "- 暂无测试计划。"))
+
+        lines.extend(["", "## 学习影响", ""])
+        learning_impacts = review.get("learning_impacts", [])
+        if learning_impacts:
+            for lesson in learning_impacts:
+                lines.append(
+                    f"- {lesson['order_index']}. {lesson['title']}："
+                    + "、".join(lesson.get("matched_files", []))
+                )
+        else:
+            lines.append("- 当前 diff 没有命中学习路线课程。")
+
+        lines.extend(["", "## 面试复盘说法", ""])
+        lines.extend(self._markdown_list(review.get("interview_talking_points", []), "- 暂无面试复盘说法。"))
+        return "\n".join(lines) + "\n"
+
     def _status_label(self, status: str) -> str:
         return {
             "NOT_STARTED": "未开始",
@@ -541,6 +602,19 @@ class ReportService:
             "DONE": "已完成",
             "IN_PROGRESS": "进行中",
             "TODO": "待补齐",
+        }.get(status, status)
+
+    def _risk_label(self, risk: str) -> str:
+        return {
+            "LOW": "低",
+            "MEDIUM": "中",
+            "HIGH": "高",
+        }.get(risk, risk)
+
+    def _review_status_label(self, status: str) -> str:
+        return {
+            "PASS": "通过",
+            "NEEDS_CHECK": "需检查",
         }.get(status, status)
 
     def _call_chain_lines(self, call_chains: list[dict]) -> list[str]:
