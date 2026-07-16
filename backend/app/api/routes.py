@@ -20,6 +20,7 @@ from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
 from app.services.dependency_graph_service import DependencyGraphService
+from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
@@ -36,6 +37,7 @@ analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
 report_service = ReportService()
 dependency_graph_service = DependencyGraphService()
+diff_impact_service = DiffImpactService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
@@ -94,6 +96,7 @@ def get_capabilities() -> dict:
             "static_analysis": True,
             "architecture_diagrams": True,
             "dependency_graph_data": True,
+            "diff_impact_analysis": True,
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
@@ -344,6 +347,21 @@ def get_dependency_graph(project_id: str) -> dict:
     if not analysis_payload:
         raise HTTPException(status_code=404, detail="请先分析项目")
     return dependency_graph_service.build(from_dict(analysis_payload))
+
+
+@router.post("/projects/{project_id}/diff-impact")
+def analyze_diff_impact(project_id: str, payload: dict) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    diff_text = str(payload.get("diff", "")).strip()
+    if not diff_text:
+        raise HTTPException(status_code=400, detail="diff 内容不能为空")
+    return diff_impact_service.analyze(
+        from_dict(analysis_payload),
+        diff_text,
+        plan=repository.get_learning_plan(project_id),
+    )
 
 
 @router.post("/projects/{project_id}/ask")
