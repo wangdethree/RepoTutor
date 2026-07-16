@@ -8,6 +8,15 @@ import streamlit as st
 
 API_URL = os.getenv("REPO_TUTOR_API_URL", "http://localhost:8000")
 
+
+def _status_label(status: str) -> str:
+    return {
+        "READY": "可展示",
+        "BUILDING": "建设中",
+        "NEEDS_SETUP": "待初始化",
+    }.get(status, status)
+
+
 st.set_page_config(page_title="RepoTutor", page_icon="RT", layout="wide")
 st.title("RepoTutor")
 st.caption("上传 FastAPI 项目 ZIP，生成架构图、学习路线、课程和测验。")
@@ -19,6 +28,44 @@ with st.sidebar:
         st.code(current_project_id)
     else:
         st.info("尚未上传项目")
+
+if st.session_state.get("project_id"):
+    try:
+        dashboard_response = requests.get(
+            f"{API_URL}/api/projects/{st.session_state['project_id']}/dashboard",
+            timeout=20,
+        )
+        dashboard_response.raise_for_status()
+        dashboard = dashboard_response.json()
+    except requests.RequestException:
+        dashboard = None
+
+    if dashboard:
+        st.header("当前项目")
+        st.subheader(dashboard["project_name"])
+        dashboard_cols = st.columns(4)
+        dashboard_cols[0].metric("总览评分", f"{dashboard['overall_score']}%")
+        dashboard_cols[1].metric("状态", _status_label(dashboard["status"]))
+        dashboard_cols[2].metric("维度", len(dashboard["dimensions"]))
+        dashboard_cols[3].metric("下一步", len(dashboard["next_actions"]))
+        st.progress(dashboard["overall_score"] / 100)
+
+        if dashboard["next_actions"]:
+            st.write("下一步")
+            for action in dashboard["next_actions"][:3]:
+                st.write(f"- {action}")
+
+        entry_cols = st.columns(4)
+        if entry_cols[0].button("项目仪表盘"):
+            st.switch_page("pages/18_Project_Dashboard.py")
+        if entry_cols[1].button("学习路线"):
+            st.switch_page("pages/3_Learning_Plan.py")
+        if entry_cols[2].button("演示讲稿"):
+            st.switch_page("pages/17_Demo_Script.py")
+        if entry_cols[3].button("报告导出"):
+            st.switch_page("pages/11_Reports.py")
+
+        st.divider()
 
 st.header("项目导入")
 

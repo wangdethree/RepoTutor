@@ -7,6 +7,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 - ZIP 安全上传与隔离解压，默认不执行用户代码。
 - 支持输入公开 GitHub 仓库 URL 导入，下载后继续复用 ZIP 安全解压和静态分析流程。
 - 首页支持一键加载内置 FastAPI Shop Demo，快速进入完整演示状态。
+- 首页会显示当前项目总览评分、下一步动作和仪表盘、学习路线、演示讲稿、报告导出入口。
 - Python AST 分析文件、类、函数、导入关系、FastAPI 路由、SQLAlchemy 模型和 Pydantic Schema。
 - 函数级调用关系解析，可生成从路由处理函数到 Service/Repository 的真实调用链。
 - 可解释文件重要度评分与文件级依赖图。
