@@ -184,6 +184,32 @@ if cards_response.status_code == 200:
                         st.session_state["source_line"] = reference["line"]
                         st.switch_page("pages/9_Source_Browser.py")
 
+tasks_response = requests.get(f"{API_URL}/api/lessons/{lesson_id}/practice-tasks", timeout=30)
+if tasks_response.status_code == 200:
+    tasks_payload = tasks_response.json()
+    st.subheader("动手任务")
+    st.caption(f"共 {tasks_payload['task_count']} 个任务，建议按顺序完成。")
+    for task in tasks_payload["tasks"]:
+        with st.container(border=True):
+            cols = st.columns([4, 1])
+            cols[0].markdown(f"**{task['title']}**")
+            cols[1].metric("预计", f"{task['estimated_minutes']} 分钟")
+            st.write(task["objective"])
+            if task.get("target_files"):
+                st.caption("目标文件：" + "；".join(task["target_files"]))
+            st.write("步骤")
+            for step in task["steps"]:
+                st.write(f"- {step}")
+            st.write("验收检查")
+            for check in task["acceptance_checks"]:
+                st.write(f"- {check}")
+            if task.get("expected_path"):
+                st.code(task["expected_path"])
+            if task.get("keyword_hint"):
+                st.caption("关键词提示：" + "；".join(task["keyword_hint"]))
+            if task.get("risk_notes"):
+                st.warning("；".join(task["risk_notes"]))
+
 st.divider()
 st.header("测验")
 quiz = requests.post(f"{API_URL}/api/lessons/{lesson_id}/quiz", timeout=60).json()

@@ -25,6 +25,7 @@ from app.services.github_import_service import GitHubImportError, GitHubImportSe
 from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
+from app.services.practice_task_service import PracticeTaskService
 from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
 from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
@@ -40,6 +41,7 @@ report_service = ReportService()
 dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
+practice_task_service = PracticeTaskService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
@@ -113,6 +115,7 @@ def get_capabilities() -> dict:
             "interview_prep": True,
             "remedial_lessons": True,
             "knowledge_cards": True,
+            "practice_tasks": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -511,6 +514,12 @@ async def download_lesson_report(lesson_id: str) -> Response:
 async def get_lesson_knowledge_cards(lesson_id: str) -> dict:
     lesson, _project, _analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
     return knowledge_card_service.build(lesson, quiz)
+
+
+@router.get("/lessons/{lesson_id}/practice-tasks")
+async def get_lesson_practice_tasks(lesson_id: str) -> dict:
+    lesson, _project, _analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
+    return practice_task_service.build(lesson, quiz)
 
 
 @router.get("/lessons/{lesson_id}")
