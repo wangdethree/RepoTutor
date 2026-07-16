@@ -163,6 +163,27 @@ for pitfall in lesson["pitfalls"]:
 st.subheader("本节总结")
 st.write(lesson["summary"])
 
+cards_response = requests.get(f"{API_URL}/api/lessons/{lesson_id}/knowledge-cards", timeout=30)
+if cards_response.status_code == 200:
+    cards_payload = cards_response.json()
+    st.subheader("知识卡片")
+    st.caption(f"共 {cards_payload['card_count']} 张，建议先遮住答案口头复述。")
+    for card in cards_payload["cards"]:
+        with st.expander(f"{card['category']} · {card['front']}"):
+            st.write(card["back"])
+            st.caption(card["review_prompt"])
+            if card.get("references"):
+                st.write("源码引用")
+                for ref_index, reference in enumerate(card["references"][:3]):
+                    cols = st.columns([3, 1, 2, 1])
+                    cols[0].code(f"{reference['file']}:{reference['line']}")
+                    cols[1].write(reference.get("kind", "source"))
+                    cols[2].write(reference.get("name", "源码位置"))
+                    if cols[3].button("查看", key=f"card-ref-{card['id']}-{ref_index}"):
+                        st.session_state["source_file_path"] = reference["file"]
+                        st.session_state["source_line"] = reference["line"]
+                        st.switch_page("pages/9_Source_Browser.py")
+
 st.divider()
 st.header("测验")
 quiz = requests.post(f"{API_URL}/api/lessons/{lesson_id}/quiz", timeout=60).json()

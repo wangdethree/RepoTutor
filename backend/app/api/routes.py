@@ -22,6 +22,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.dependency_graph_service import DependencyGraphService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.github_import_service import GitHubImportError, GitHubImportService
+from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
 from app.services.qa_generation_service import QAGenerationService
@@ -38,6 +39,7 @@ source_browser_service = SourceBrowserService()
 report_service = ReportService()
 dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
+knowledge_card_service = KnowledgeCardService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
@@ -110,6 +112,7 @@ def get_capabilities() -> dict:
             "quiz_assessment": True,
             "interview_prep": True,
             "remedial_lessons": True,
+            "knowledge_cards": True,
         },
         "llm": {
             "configured": llm_config["api_key_configured"],
@@ -502,6 +505,12 @@ async def download_lesson_report(lesson_id: str) -> Response:
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/lessons/{lesson_id}/knowledge-cards")
+async def get_lesson_knowledge_cards(lesson_id: str) -> dict:
+    lesson, _project, _analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
+    return knowledge_card_service.build(lesson, quiz)
 
 
 @router.get("/lessons/{lesson_id}")
