@@ -18,6 +18,15 @@ def _status_label(status: str) -> str:
     }.get(status, status)
 
 
+def _open_source(file_path: str, line: int | None = None) -> None:
+    st.session_state["source_file_path"] = file_path
+    if line is None:
+        st.session_state.pop("source_line", None)
+    else:
+        st.session_state["source_line"] = line
+    st.switch_page("pages/9_Source_Browser.py")
+
+
 def _render_remediation(remediation: dict, key_prefix: str) -> None:
     st.divider()
     st.header("补充讲解")
@@ -201,7 +210,21 @@ if tasks_response.status_code == 200:
             cols[1].metric("预计", f"{task['estimated_minutes']} 分钟")
             st.write(task["objective"])
             if task.get("target_files"):
-                st.caption("目标文件：" + "；".join(task["target_files"]))
+                st.write("目标文件")
+                for file_index, file_path in enumerate(task["target_files"][:5]):
+                    file_cols = st.columns([4, 1])
+                    file_cols[0].code(file_path)
+                    if file_cols[1].button("打开", key=f"practice-target-{task['id']}-{file_index}"):
+                        _open_source(file_path)
+            if task.get("references"):
+                st.write("源码锚点")
+                for ref_index, reference in enumerate(task["references"][:5]):
+                    cols = st.columns([3, 1, 2, 1])
+                    cols[0].code(f"{reference['file']}:{reference['line']}")
+                    cols[1].write(reference.get("kind", "source"))
+                    cols[2].write(reference.get("name", "源码位置"))
+                    if cols[3].button("查看", key=f"practice-ref-{task['id']}-{ref_index}"):
+                        _open_source(reference["file"], reference["line"])
             st.write("步骤")
             for step in task["steps"]:
                 st.write(f"- {step}")
