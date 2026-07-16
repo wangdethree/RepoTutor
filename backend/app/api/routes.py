@@ -29,6 +29,7 @@ from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
 from app.services.practice_task_service import PracticeTaskService
+from app.services.pr_review_service import PRReviewService
 from app.services.project_dashboard_service import ProjectDashboardService
 from app.services.project_improvement_service import ProjectImprovementService
 from app.services.qa_generation_service import QAGenerationService
@@ -49,6 +50,7 @@ dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
 practice_task_service = PracticeTaskService()
+pr_review_service = PRReviewService()
 project_dashboard_service = ProjectDashboardService()
 project_improvement_service = ProjectImprovementService()
 interview_readiness_service = InterviewReadinessService()
@@ -112,6 +114,7 @@ def get_capabilities() -> dict:
             "architecture_diagrams": True,
             "dependency_graph_data": True,
             "diff_impact_analysis": True,
+            "pr_review_pack": True,
             "demo_readiness": True,
             "demo_script": True,
             "demo_script_markdown_export": True,
@@ -420,6 +423,25 @@ def analyze_diff_impact(project_id: str, payload: dict) -> dict:
         diff_text,
         plan=repository.get_learning_plan(project_id),
     )
+
+
+@router.post("/projects/{project_id}/pr-review")
+def build_pr_review(project_id: str, payload: dict) -> dict:
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    diff_text = str(payload.get("diff", "")).strip()
+    if not diff_text:
+        raise HTTPException(status_code=400, detail="diff 内容不能为空")
+    impact = diff_impact_service.analyze(
+        from_dict(analysis_payload),
+        diff_text,
+        plan=repository.get_learning_plan(project_id),
+    )
+    return pr_review_service.build(project, diff_text, impact)
 
 
 @router.post("/projects/{project_id}/ask")
