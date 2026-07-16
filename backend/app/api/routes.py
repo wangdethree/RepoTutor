@@ -19,6 +19,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.contextual_qa_service import ContextualQAService
 from app.services.demo_readiness_service import DemoReadinessService
 from app.services.demo_script_service import DemoScriptService
 from app.services.dependency_graph_service import DependencyGraphService
@@ -49,6 +50,7 @@ demo_readiness_service = DemoReadinessService()
 demo_script_service = DemoScriptService()
 dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
+contextual_qa_service = ContextualQAService()
 knowledge_card_service = KnowledgeCardService()
 practice_task_service = PracticeTaskService()
 pr_review_service = PRReviewService()
@@ -120,6 +122,7 @@ def get_capabilities() -> dict:
             "pr_review_markdown_export": True,
             "incremental_learning": True,
             "incremental_learning_markdown_export": True,
+            "contextual_source_qa": True,
             "demo_readiness": True,
             "demo_script": True,
             "demo_script_markdown_export": True,
@@ -484,6 +487,26 @@ async def ask_project(project_id: str, payload: dict[str, str]) -> dict:
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
     return await qa_generation_service.answer(from_dict(analysis_payload), question)
+
+
+@router.post("/projects/{project_id}/contextual-qa")
+def ask_contextual_source(project_id: str, payload: dict) -> dict:
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    question = str(payload.get("question", "")).strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    diff_text = str(payload.get("diff", "")).strip()
+    diff_impact = _build_diff_impact(project_id, diff_text) if diff_text else None
+    return contextual_qa_service.answer(
+        analysis=from_dict(analysis_payload),
+        question=question,
+        file_path=str(payload.get("file_path", "")).strip(),
+        symbol_name=str(payload.get("symbol_name", "")).strip(),
+        plan=repository.get_learning_plan(project_id),
+        diff_impact=diff_impact,
+    )
 
 
 @router.post("/projects/{project_id}/agent-runs/onboarding")

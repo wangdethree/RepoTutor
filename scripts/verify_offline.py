@@ -19,6 +19,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.services.demo_readiness_service import DemoReadinessService
 from app.services.demo_script_service import DemoScriptService
 from app.services.analysis_service import AnalysisService
+from app.services.contextual_qa_service import ContextualQAService
 from app.services.diff_impact_service import DiffImpactService
 from app.services.incremental_learning_service import IncrementalLearningService
 from app.services.pr_review_service import PRReviewService
@@ -180,6 +181,18 @@ def verify_v2_change_understanding_services(analysis, plan: dict) -> None:
     incremental_markdown = ReportService().build_incremental_learning_report(project, incremental)
     assert "增量学习建议" in incremental_markdown
     assert "## 源码检查点" in incremental_markdown
+
+    contextual_qa = ContextualQAService().answer(
+        analysis=analysis,
+        question="订单接口这次改动要重点看哪里？",
+        file_path="app/api/orders.py",
+        symbol_name="create_order",
+        plan=plan,
+        diff_impact=impact,
+    )
+    assert contextual_qa["references"]
+    assert contextual_qa["diff_focus"]["changed_files"] == ["app/api/orders.py"]
+    assert contextual_qa["source_checkpoints"]
 
 
 def verify_safe_zip() -> None:

@@ -60,6 +60,7 @@ def test_health_and_capabilities_report_runtime_status(tmp_path: Path, monkeypat
     assert capabilities["features"]["pr_review_markdown_export"] is True
     assert capabilities["features"]["incremental_learning"] is True
     assert capabilities["features"]["incremental_learning_markdown_export"] is True
+    assert capabilities["features"]["contextual_source_qa"] is True
     assert capabilities["features"]["demo_readiness"] is True
     assert capabilities["features"]["demo_script"] is True
     assert capabilities["features"]["demo_script_markdown_export"] is True
