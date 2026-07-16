@@ -28,6 +28,7 @@ from app.services.knowledge_card_service import KnowledgeCardService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.profile_service import build_profile, build_profile_from_payload
 from app.services.practice_task_service import PracticeTaskService
+from app.services.project_improvement_service import ProjectImprovementService
 from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
 from app.services.source_browser_service import SourceBrowserService, SourceFileAccessError, SourceFileNotFoundError
@@ -45,6 +46,7 @@ dependency_graph_service = DependencyGraphService()
 diff_impact_service = DiffImpactService()
 knowledge_card_service = KnowledgeCardService()
 practice_task_service = PracticeTaskService()
+project_improvement_service = ProjectImprovementService()
 interview_readiness_service = InterviewReadinessService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
 github_import_service = GitHubImportService()
@@ -106,6 +108,7 @@ def get_capabilities() -> dict:
             "dependency_graph_data": True,
             "diff_impact_analysis": True,
             "demo_readiness": True,
+            "improvement_suggestions": True,
             "langgraph_workflow": True,
             "deterministic_lessons": True,
             "llm_lessons": llm_config["api_key_configured"],
@@ -488,6 +491,28 @@ def get_project_demo_readiness(project_id: str) -> dict:
         practice_progress=practice_progress,
         quiz_results=quiz_results,
         interview_readiness=interview_readiness,
+    )
+
+
+@router.get("/projects/{project_id}/improvement-suggestions")
+def get_project_improvement_suggestions(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    plan = repository.get_learning_plan(project_id)
+    progress = repository.get_learning_progress(project_id)
+    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    return project_improvement_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
     )
 
 
