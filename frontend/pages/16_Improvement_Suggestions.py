@@ -65,6 +65,9 @@ for suggestion in payload["suggestions"]:
             st.switch_page(suggestion["page"])
 
         st.write(suggestion["reason"])
+        if suggestion.get("interview_talking_point"):
+            st.caption("面试说法")
+            st.info(suggestion["interview_talking_point"])
         for action in suggestion["action_items"]:
             st.write(f"- {action}")
 

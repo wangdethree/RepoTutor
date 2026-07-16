@@ -41,6 +41,7 @@ def test_project_improvement_prioritizes_missing_tests_for_routed_project() -> N
     assert payload["highest_priority"] == "HIGH"
     assert payload["suggestions"][0]["id"] in {"learning_plan_missing", "testing_baseline"}
     assert any(item["id"] == "testing_baseline" for item in payload["suggestions"])
+    assert all(item["interview_talking_point"] for item in payload["suggestions"])
     assert payload["next_actions"]
 
 
@@ -105,3 +106,4 @@ def test_project_improvement_surfaces_learning_and_practice_gaps() -> None:
     learning_gap = next(item for item in payload["suggestions"] if item["id"] == "learning_gaps")
     assert learning_gap["priority"] == "HIGH"
     assert learning_gap["related_lessons"][0]["id"] == "lesson-1"
+    assert "测验结果驱动补强" in learning_gap["interview_talking_point"]

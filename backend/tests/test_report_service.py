@@ -59,6 +59,7 @@ def test_report_service_builds_learning_markdown(tmp_path: Path) -> None:
     assert "调用链复述" in markdown
     assert "## 项目改进建议" in markdown
     assert "补齐核心流程测试" in markdown
+    assert "面试说法" in markdown
     assert "FastAPI 后端服务" in markdown
 
 
@@ -151,6 +152,7 @@ def test_report_service_adds_improvement_suggestions_to_interview_markdown() -> 
 
     assert "## 项目改进讲述素材" in markdown
     assert "补齐核心流程测试" in markdown
+    assert "面试说法" in markdown
     assert "面试中可把这些点讲成" in markdown
 
 
@@ -190,6 +192,7 @@ def _sample_improvement_suggestions() -> dict:
                     "为项目导入、静态分析、学习路线生成各补 1 条接口测试。",
                     "为核心 service 增加确定性单元测试。",
                 ],
+                "interview_talking_point": "我会把这个项目下一步的工程化重点放在测试兜底上。",
                 "related_files": ["backend/app/api/routes.py"],
                 "related_lessons": [
                     {"id": "lesson-1", "title": "入口与路由", "order_index": 1},

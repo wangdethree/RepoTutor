@@ -432,11 +432,11 @@ class ReportService:
                     f"- 优先级：{self._priority_label(suggestion['priority'])}",
                     f"- 分类：{suggestion['category']}",
                     f"- 原因：{suggestion['reason']}",
-                    "",
-                    "#### 可讲行动",
-                    "",
                 ]
             )
+            if suggestion.get("interview_talking_point"):
+                lines.append(f"- 面试说法：{suggestion['interview_talking_point']}")
+            lines.extend(["", "#### 可讲行动", ""])
             lines.extend(self._markdown_list(suggestion.get("action_items", [])[:3], "- 暂无可讲行动。"))
             if suggestion.get("related_files"):
                 files = [f"`{path}`" for path in suggestion["related_files"][:4]]
@@ -458,6 +458,8 @@ class ReportService:
         lines = ["", "### 可执行动作", ""]
         for suggestion in suggestions:
             lines.extend([f"#### {suggestion['title']}", ""])
+            if suggestion.get("interview_talking_point"):
+                lines.extend([f"面试说法：{suggestion['interview_talking_point']}", ""])
             lines.extend(self._markdown_list(suggestion.get("action_items", []), "- 暂无可执行动作。"))
             if suggestion.get("related_files"):
                 files = [f"`{path}`" for path in suggestion["related_files"]]

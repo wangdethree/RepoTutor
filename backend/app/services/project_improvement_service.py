@@ -227,10 +227,25 @@ class ProjectImprovementService:
             "title": title,
             "reason": reason,
             "action_items": action_items,
+            "interview_talking_point": self._talking_point(suggestion_id, action_items),
             "related_files": related_files,
             "related_lessons": related_lessons,
             "page": page,
         }
+
+    def _talking_point(self, suggestion_id: str, action_items: list[str]) -> str:
+        first_action = action_items[0] if action_items else "继续补齐项目证据。"
+        templates = {
+            "testing_baseline": "我会把这个项目下一步的工程化重点放在测试兜底上，先覆盖核心接口和学习链路。{action}",
+            "api_contracts": "我会继续收敛接口契约，让前后端边界更稳定，减少字段变更带来的联调成本。{action}",
+            "data_migrations": "我会把数据模型演进显式化，补充迁移和约束说明，避免后续多人协作时数据库状态不可追踪。{action}",
+            "learning_plan_missing": "当前最重要的是先建立学习路线，因为后续测验、练习和复习都需要围绕路线形成闭环。{action}",
+            "learning_gaps": "我会把低分课程和缺失点转成复习计划，说明自己不是只看代码，而是用测验结果驱动补强。{action}",
+            "practice_gaps": "我会继续补齐动手练习，重点证明自己能从源码定位、调用链复述走到改动影响判断。{action}",
+            "architecture_story": "我会把核心模块整理成入口、业务、数据三段式讲述，让项目介绍更像一次真实工程复盘。{action}",
+        }
+        template = templates.get(suggestion_id, "我会基于当前项目事实继续推进改进，优先处理最影响演示和交付质量的事项。{action}")
+        return template.format(action=first_action)
 
     def _top_files(self, analysis: dict, module_types: set[str], limit: int) -> list[str]:
         files = [
