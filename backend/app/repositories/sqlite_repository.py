@@ -113,6 +113,15 @@ class SQLiteRepository:
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS practice_task_records (
+                    id TEXT PRIMARY KEY,
+                    lesson_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    completed_at TEXT DEFAULT '',
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS app_settings (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL,
@@ -543,6 +552,41 @@ class SQLiteRepository:
                 (project_id,),
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
+
+    def list_practice_task_records(self, lesson_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT lesson_id, task_id, completed, completed_at, updated_at
+                FROM practice_task_records
+                WHERE lesson_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (lesson_id,),
+            ).fetchall()
+        records = [self._row_to_dict(row) for row in rows]
+        for record in records:
+            record["completed"] = bool(record["completed"])
+        return records
+
+    def upsert_practice_task_record(self, lesson_id: str, task_id: str, completed: bool) -> dict:
+        now = self._now()
+        record_id = f"{lesson_id}:{task_id}"
+        completed_at = now if completed else ""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO practice_task_records (id, lesson_id, task_id, completed, completed_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE
+                SET completed = excluded.completed,
+                    completed_at = excluded.completed_at,
+                    updated_at = excluded.updated_at
+                """,
+                (record_id, lesson_id, task_id, int(completed), completed_at, now),
+            )
+        records = [record for record in self.list_practice_task_records(lesson_id) if record["task_id"] == task_id]
+        return records[0] if records else {}
 
     def get_app_settings(self, keys: list[str]) -> dict[str, str]:
         placeholders = ",".join("?" for _ in keys)

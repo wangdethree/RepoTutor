@@ -188,11 +188,16 @@ tasks_response = requests.get(f"{API_URL}/api/lessons/{lesson_id}/practice-tasks
 if tasks_response.status_code == 200:
     tasks_payload = tasks_response.json()
     st.subheader("动手任务")
-    st.caption(f"共 {tasks_payload['task_count']} 个任务，建议按顺序完成。")
+    task_cols = st.columns(3)
+    task_cols[0].metric("任务数", tasks_payload["task_count"])
+    task_cols[1].metric("已完成", tasks_payload["completed_task_count"])
+    task_cols[2].metric("完成率", f"{tasks_payload['completion_rate']}%")
+    st.caption("建议按顺序完成，每个任务完成后手动标记。")
     for task in tasks_payload["tasks"]:
         with st.container(border=True):
             cols = st.columns([4, 1])
-            cols[0].markdown(f"**{task['title']}**")
+            title_prefix = "[已完成] " if task.get("completed") else ""
+            cols[0].markdown(f"**{title_prefix}{task['title']}**")
             cols[1].metric("预计", f"{task['estimated_minutes']} 分钟")
             st.write(task["objective"])
             if task.get("target_files"):
@@ -209,6 +214,16 @@ if tasks_response.status_code == 200:
                 st.caption("关键词提示：" + "；".join(task["keyword_hint"]))
             if task.get("risk_notes"):
                 st.warning("；".join(task["risk_notes"]))
+            next_completed = not task.get("completed", False)
+            action_label = "取消完成" if task.get("completed") else "标记完成"
+            if st.button(action_label, key=f"practice-task-status-{task['id']}"):
+                status_response = requests.post(
+                    f"{API_URL}/api/lessons/{lesson_id}/practice-tasks/{task['id']}/status",
+                    json={"completed": next_completed},
+                    timeout=30,
+                )
+                status_response.raise_for_status()
+                st.rerun()
 
 st.divider()
 st.header("测验")

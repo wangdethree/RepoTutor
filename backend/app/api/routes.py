@@ -519,7 +519,17 @@ async def get_lesson_knowledge_cards(lesson_id: str) -> dict:
 @router.get("/lessons/{lesson_id}/practice-tasks")
 async def get_lesson_practice_tasks(lesson_id: str) -> dict:
     lesson, _project, _analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
-    return practice_task_service.build(lesson, quiz)
+    return _practice_tasks_with_records(lesson_id, practice_task_service.build(lesson, quiz))
+
+
+@router.post("/lessons/{lesson_id}/practice-tasks/{task_id}/status")
+async def update_practice_task_status(lesson_id: str, task_id: str, payload: dict) -> dict:
+    lesson, _project, _analysis_payload, quiz = await _build_lesson_report_inputs(lesson_id)
+    tasks_payload = practice_task_service.build(lesson, quiz)
+    if not any(task["id"] == task_id for task in tasks_payload["tasks"]):
+        raise HTTPException(status_code=404, detail="动手任务不存在")
+    repository.upsert_practice_task_record(lesson_id, task_id, bool(payload.get("completed")))
+    return _practice_tasks_with_records(lesson_id, tasks_payload)
 
 
 @router.get("/lessons/{lesson_id}")
@@ -718,6 +728,21 @@ async def _build_lesson_report_inputs(lesson_id: str) -> tuple[dict, dict, dict,
         repository.save_quiz(quiz)
 
     return lesson, project, analysis_payload, quiz
+
+
+def _practice_tasks_with_records(lesson_id: str, tasks_payload: dict) -> dict:
+    records = {record["task_id"]: record for record in repository.list_practice_task_records(lesson_id)}
+    completed_count = 0
+    for task in tasks_payload["tasks"]:
+        record = records.get(task["id"], {})
+        task["completed"] = bool(record.get("completed", False))
+        task["completed_at"] = record.get("completed_at", "")
+        task["updated_at"] = record.get("updated_at", "")
+        if task["completed"]:
+            completed_count += 1
+    tasks_payload["completed_task_count"] = completed_count
+    tasks_payload["completion_rate"] = round(completed_count / tasks_payload["task_count"] * 100) if tasks_payload["task_count"] else 0
+    return tasks_payload
 
 
 def _safe_filename(value: str) -> str:
