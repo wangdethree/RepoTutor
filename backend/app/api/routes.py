@@ -19,6 +19,7 @@ from app.diagrams.architecture_builder import build_all_diagrams
 from app.repositories.sqlite_repository import SQLiteRepository
 from app.schemas.analysis import from_dict
 from app.services.analysis_service import AnalysisService
+from app.services.github_import_service import GitHubImportError, GitHubImportService
 from app.services.lesson_generation_service import LessonGenerationService
 from app.services.qa_generation_service import QAGenerationService
 from app.services.report_service import ReportService
@@ -33,6 +34,7 @@ analysis_service = AnalysisService()
 source_browser_service = SourceBrowserService()
 report_service = ReportService()
 workflow_service = WorkflowService(repository=repository, analysis_service=analysis_service)
+github_import_service = GitHubImportService()
 curriculum_agent = CurriculumAgent()
 teaching_agent = TeachingAgent()
 lesson_generation_service = LessonGenerationService(teaching_agent=teaching_agent, repository=repository)
@@ -85,6 +87,7 @@ def get_capabilities() -> dict:
     return {
         "features": {
             "safe_zip_upload": True,
+            "github_url_import": True,
             "static_analysis": True,
             "architecture_diagrams": True,
             "langgraph_workflow": True,
@@ -214,6 +217,32 @@ async def upload_project(
     }
     project = repository.create_project(project_name, zip_file.filename, extract_dir, profile)
     return {"project": project, "profile": profile}
+
+
+@router.post("/projects/import-github")
+def import_github_project(payload: dict) -> dict:
+    github_url = str(payload.get("github_url", "")).strip()
+    if not github_url:
+        raise HTTPException(status_code=400, detail="GitHub 仓库地址不能为空")
+
+    upload_id = str(uuid.uuid4())
+    project_dir = settings.upload_dir / upload_id
+    raw_zip = project_dir / "github.zip"
+    extract_dir = project_dir / "repo"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        repo_ref = github_import_service.download_zip(github_url, raw_zip)
+        safe_extract_zip(raw_zip, extract_dir)
+        repo_root = github_import_service.detect_repo_root(extract_dir)
+    except (GitHubImportError, ZipSafetyError) as exc:
+        shutil.rmtree(project_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    profile = _profile_from_payload(payload)
+    project_name = str(payload.get("project_name") or repo_ref.repo).strip() or repo_ref.repo
+    project = repository.create_project(project_name, repo_ref.archive_filename, repo_root, profile)
+    return {"project": project, "profile": profile, "github": repo_ref.to_dict()}
 
 
 @router.get("/projects")
@@ -555,6 +584,15 @@ def _project_id_from_lesson_plan(lesson_id: str) -> str | None:
         if any(lesson["id"] == lesson_id for lesson in plan.get("lessons", [])):
             return project["id"]
     return None
+
+
+def _profile_from_payload(payload: dict) -> dict[str, str]:
+    return {
+        "python_level": str(payload.get("python_level", "基础")).strip() or "基础",
+        "fastapi_level": str(payload.get("fastapi_level", "了解基础")).strip() or "了解基础",
+        "learning_goal": str(payload.get("learning_goal", "看懂项目结构")).strip() or "看懂项目结构",
+        "daily_time": str(payload.get("daily_time", "30 分钟")).strip() or "30 分钟",
+    }
 
 
 def _lesson_status_from_score(score: int) -> str:

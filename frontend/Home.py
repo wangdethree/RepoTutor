@@ -23,7 +23,13 @@ with st.sidebar:
 st.header("项目导入")
 
 project_name = st.text_input("项目名称", value="FastAPI Demo")
-zip_file = st.file_uploader("上传 ZIP 项目", type=["zip"])
+import_mode = st.radio("导入方式", ["上传 ZIP", "GitHub URL"], horizontal=True)
+zip_file = None
+github_url = ""
+if import_mode == "上传 ZIP":
+    zip_file = st.file_uploader("上传 ZIP 项目", type=["zip"])
+else:
+    github_url = st.text_input("GitHub 仓库 URL", placeholder="https://github.com/owner/repo")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -33,9 +39,10 @@ with col2:
     fastapi_level = st.selectbox("FastAPI 水平", ["未学习", "了解基础", "做过简单项目"])
     daily_time = st.selectbox("每天可用时间", ["30 分钟", "1 小时", "2 小时"])
 
-if st.button("开始分析", type="primary", disabled=zip_file is None):
-    files = {"zip_file": (zip_file.name, zip_file.getvalue(), "application/zip")}
-    data = {
+can_start = zip_file is not None if import_mode == "上传 ZIP" else bool(github_url.strip())
+
+if st.button("开始分析", type="primary", disabled=not can_start):
+    profile_payload = {
         "project_name": project_name,
         "python_level": python_level,
         "fastapi_level": fastapi_level,
@@ -43,14 +50,19 @@ if st.button("开始分析", type="primary", disabled=zip_file is None):
         "daily_time": daily_time,
     }
     with st.status("上传并分析项目", expanded=True) as status:
-        response = requests.post(f"{API_URL}/api/projects/upload", data=data, files=files, timeout=120)
+        if import_mode == "上传 ZIP":
+            files = {"zip_file": (zip_file.name, zip_file.getvalue(), "application/zip")}
+            response = requests.post(f"{API_URL}/api/projects/upload", data=profile_payload, files=files, timeout=120)
+        else:
+            payload = {**profile_payload, "github_url": github_url}
+            response = requests.post(f"{API_URL}/api/projects/import-github", json=payload, timeout=180)
         if response.status_code >= 400:
             st.error(response.text)
             st.stop()
         project = response.json()["project"]
         project_id = project["id"]
         st.session_state["project_id"] = project_id
-        st.write("ZIP 已安全解压")
+        st.write("项目源码已安全导入")
 
         run_response = requests.post(f"{API_URL}/api/projects/{project_id}/agent-runs/onboarding", timeout=180)
         run_response.raise_for_status()

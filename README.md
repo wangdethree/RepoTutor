@@ -5,6 +5,7 @@ RepoTutor 是一个面向 Python/FastAPI 项目的交互式 AI 代码导师。�
 ## V1 已实现闭环
 
 - ZIP 安全上传与隔离解压，默认不执行用户代码。
+- 支持输入公开 GitHub 仓库 URL 导入，下载后继续复用 ZIP 安全解压和静态分析流程。
 - Python AST 分析文件、类、函数、导入关系、FastAPI 路由、SQLAlchemy 模型和 Pydantic Schema。
 - 函数级调用关系解析，可生成从路由处理函数到 Service/Repository 的真实调用链。
 - 可解释文件重要度评分与文件级依赖图。
@@ -109,8 +110,8 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 
 ## 演示流程
 
-1. 将 `demo_repositories/fastapi_shop` 压缩成 ZIP。
-2. 在 Streamlit 首页上传 ZIP。
+1. 将 `demo_repositories/fastapi_shop` 压缩成 ZIP，或准备一个公开 GitHub 仓库地址。
+2. 在 Streamlit 首页上传 ZIP，或切换到 GitHub URL 导入。
 3. 选择 Python 水平、FastAPI 水平、学习目标和每天可用时间。
 4. 点击开始分析。
 5. 查看 Agent 运行记录，确认分析、架构图和学习路线节点已完成。
@@ -126,6 +127,7 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 ## API 摘要
 
 - `POST /api/projects/upload`
+- `POST /api/projects/import-github`
 - `GET /api/health`
 - `GET /api/capabilities`
 - `GET /api/projects`
@@ -164,4 +166,4 @@ GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行：
 
 ## 安全边界
 
-RepoTutor 只读取上传仓库的文本源码，不安装依赖、不导入上传项目、不运行测试、不执行任何用户代码。ZIP 解压会限制大小、文件数、单文件大小，并拦截路径穿越、软链接、`.env`、私钥、证书、`.git` 等敏感内容。
+RepoTutor 只读取上传仓库的文本源码，不安装依赖、不导入上传项目、不运行测试、不执行任何用户代码。ZIP 解压会限制大小、文件数、单文件大小，并拦截路径穿越、软链接、`.env`、私钥、证书、`.git` 等敏感内容。GitHub URL 导入只支持公开仓库根地址，下载后仍然走同一套安全解压逻辑。
