@@ -111,6 +111,7 @@ def get_capabilities() -> dict:
             "diff_impact_analysis": True,
             "demo_readiness": True,
             "demo_script": True,
+            "demo_script_markdown_export": True,
             "improvement_suggestions": True,
             "improvement_report_export": True,
             "langgraph_workflow": True,
@@ -500,43 +501,19 @@ def get_project_demo_readiness(project_id: str) -> dict:
 
 @router.get("/projects/{project_id}/demo-script")
 def get_project_demo_script(project_id: str) -> dict:
+    return _build_project_demo_script(project_id)
+
+
+@router.get("/projects/{project_id}/demo-script.md")
+def download_project_demo_script(project_id: str) -> Response:
     project = repository.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    analysis_payload = repository.get_analysis(project_id)
-    if not analysis_payload:
-        raise HTTPException(status_code=404, detail="请先分析项目")
-    plan = repository.get_learning_plan(project_id)
-    progress = repository.get_learning_progress(project_id)
-    diagrams = repository.get_diagrams(project_id)
-    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
-    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
-    interview_readiness = _optional_interview_readiness(project_id, analysis_payload, plan, progress)
-    demo_readiness = demo_readiness_service.build(
-        project=project,
-        analysis=analysis_payload,
-        plan=plan,
-        diagrams=diagrams,
-        progress=progress,
-        practice_progress=practice_progress,
-        quiz_results=quiz_results,
-        interview_readiness=interview_readiness,
-    )
-    improvement_suggestions = project_improvement_service.build(
-        project=project,
-        analysis=analysis_payload,
-        plan=plan,
-        progress=progress,
-        practice_progress=practice_progress,
-        quiz_results=quiz_results,
-    )
-    return demo_script_service.build(
-        project=project,
-        analysis=analysis_payload,
-        plan=plan,
-        progress=progress,
-        demo_readiness=demo_readiness,
-        improvement_suggestions=improvement_suggestions,
+    filename = _safe_filename(project["name"]) + "-demo-script.md"
+    return Response(
+        content=report_service.build_demo_script_report(project, _build_project_demo_script(project_id)),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -922,6 +899,47 @@ def _build_interview_report(project_id: str) -> str:
         project=project,
         kit=kit,
         readiness=readiness,
+        improvement_suggestions=improvement_suggestions,
+    )
+
+
+def _build_project_demo_script(project_id: str) -> dict:
+    project = repository.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    analysis_payload = repository.get_analysis(project_id)
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    plan = repository.get_learning_plan(project_id)
+    progress = repository.get_learning_progress(project_id)
+    diagrams = repository.get_diagrams(project_id)
+    quiz_results = repository.list_quiz_results_for_project(project_id) if plan else []
+    practice_progress = _optional_project_practice_progress(project_id, analysis_payload, plan)
+    interview_readiness = _optional_interview_readiness(project_id, analysis_payload, plan, progress)
+    demo_readiness = demo_readiness_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        diagrams=diagrams,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+        interview_readiness=interview_readiness,
+    )
+    improvement_suggestions = project_improvement_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        practice_progress=practice_progress,
+        quiz_results=quiz_results,
+    )
+    return demo_script_service.build(
+        project=project,
+        analysis=analysis_payload,
+        plan=plan,
+        progress=progress,
+        demo_readiness=demo_readiness,
         improvement_suggestions=improvement_suggestions,
     )
 

@@ -131,6 +131,20 @@ def test_lesson_report_api_returns_markdown_download(tmp_path: Path, monkeypatch
     assert "## 动手任务" in response.text
 
 
+def test_demo_script_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
+    repository, project_id = _prepared_repository(tmp_path)
+    monkeypatch.setattr(routes, "repository", repository)
+    client = TestClient(app)
+
+    response = client.get(f"/api/projects/{project_id}/demo-script.md")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "demo-script.md" in response.headers["content-disposition"]
+    assert "## 演示顺序" in response.text
+    assert "## 收尾句" in response.text
+
+
 def test_report_service_adds_improvement_suggestions_to_interview_markdown() -> None:
     markdown = ReportService().build_interview_report(
         project={"name": "FastAPI Shop", "original_filename": "fastapi_shop.zip"},

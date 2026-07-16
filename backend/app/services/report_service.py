@@ -268,6 +268,49 @@ class ReportService:
         lines.extend(["", "## 收尾总结", "", kit["closing_summary"]])
         return "\n".join(lines) + "\n"
 
+    def build_demo_script_report(self, project: dict, script: dict) -> str:
+        """导出演示讲稿，方便用户离线照着演练。"""
+
+        lines = [
+            f"# {script['title']}",
+            "",
+            f"- 生成时间：{datetime.now(timezone.utc).isoformat()}",
+            f"- 项目：{project['name']}",
+            f"- 原始文件：{project['original_filename']}",
+            f"- 预计时长：{script.get('estimated_minutes', 0)} 分钟",
+            f"- 演示准备度：{script.get('readiness_score', 0)}%",
+            "",
+            "## 开场句",
+            "",
+            script.get("opening_sentence", ""),
+            "",
+            "## 演示顺序",
+            "",
+            "| 顺序 | 段落 | 时长 | 跳转页面 |",
+            "| ---: | --- | ---: | --- |",
+        ]
+        for index, section in enumerate(script.get("sections", []), start=1):
+            lines.append(
+                f"| {index} | {section['title']} | {section.get('duration_minutes', 0)} 分钟 | `{section.get('page', '')}` |"
+            )
+
+        for index, section in enumerate(script.get("sections", []), start=1):
+            lines.extend(
+                [
+                    "",
+                    f"## {index}. {section['title']}",
+                    "",
+                    "### 讲述要点",
+                    "",
+                ]
+            )
+            lines.extend(self._markdown_list(section.get("talking_points", []), "- 暂无讲述要点。"))
+            lines.extend(["", "### 证据或补充", ""])
+            lines.extend(self._markdown_list(section.get("evidence", []), "- 暂无证据。"))
+
+        lines.extend(["", "## 收尾句", "", script.get("closing_sentence", "")])
+        return "\n".join(lines) + "\n"
+
     def _status_label(self, status: str) -> str:
         return {
             "NOT_STARTED": "未开始",
