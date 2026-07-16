@@ -122,6 +122,15 @@ class SQLiteRepository:
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS interview_question_records (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    question_id TEXT NOT NULL,
+                    mastered INTEGER NOT NULL DEFAULT 0,
+                    mastered_at TEXT DEFAULT '',
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS app_settings (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL,
@@ -586,6 +595,45 @@ class SQLiteRepository:
                 (record_id, lesson_id, task_id, int(completed), completed_at, now),
             )
         records = [record for record in self.list_practice_task_records(lesson_id) if record["task_id"] == task_id]
+        return records[0] if records else {}
+
+    def list_interview_question_records(self, project_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT project_id, question_id, mastered, mastered_at, updated_at
+                FROM interview_question_records
+                WHERE project_id = ?
+                ORDER BY updated_at DESC
+                """,
+                (project_id,),
+            ).fetchall()
+        records = [self._row_to_dict(row) for row in rows]
+        for record in records:
+            record["mastered"] = bool(record["mastered"])
+        return records
+
+    def upsert_interview_question_record(self, project_id: str, question_id: str, mastered: bool) -> dict:
+        now = self._now()
+        record_id = f"{project_id}:{question_id}"
+        mastered_at = now if mastered else ""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO interview_question_records (id, project_id, question_id, mastered, mastered_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE
+                SET mastered = excluded.mastered,
+                    mastered_at = excluded.mastered_at,
+                    updated_at = excluded.updated_at
+                """,
+                (record_id, project_id, question_id, int(mastered), mastered_at, now),
+            )
+        records = [
+            record
+            for record in self.list_interview_question_records(project_id)
+            if record["question_id"] == question_id
+        ]
         return records[0] if records else {}
 
     def get_app_settings(self, keys: list[str]) -> dict[str, str]:

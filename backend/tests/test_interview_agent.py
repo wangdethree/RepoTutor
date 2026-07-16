@@ -100,6 +100,8 @@ def test_interview_kit_api_returns_project_material(tmp_path: Path, monkeypatch)
     assert payload["project_id"] == project["id"]
     assert payload["fact_checked"] is True
     assert payload["questions"][0]["references"]
+    assert payload["questions"][0]["mastered"] is False
+    assert payload["question_mastery_rate"] == 0
 
 
 def test_interview_kit_api_returns_markdown_download(tmp_path: Path, monkeypatch) -> None:
@@ -151,3 +153,33 @@ def test_interview_readiness_api_returns_checklist(tmp_path: Path, monkeypatch) 
     assert "readiness_score" in payload
     assert payload["readiness_level"] in {"READY", "ALMOST_READY", "NEEDS_WORK"}
     assert payload["checklist"]
+
+
+def test_interview_question_status_can_be_updated(tmp_path: Path, monkeypatch) -> None:
+    repository = SQLiteRepository(f"sqlite:///{tmp_path / 'interview-question-records.db'}")
+    repo_root = Path(__file__).resolve().parents[2] / "demo_repositories" / "fastapi_shop"
+    profile = {
+        "python_level": "基础",
+        "fastapi_level": "了解基础",
+        "learning_goal": "准备项目面试",
+        "daily_time": "1 小时",
+    }
+    project = repository.create_project("FastAPI Shop", "fastapi_shop.zip", repo_root, profile)
+    analysis = AnalysisService().analyze(project["id"], repo_root)
+    repository.save_analysis(project["id"], analysis.to_dict())
+    repository.save_learning_plan(project["id"], CurriculumAgent().generate(analysis, profile))
+    monkeypatch.setattr(routes, "repository", repository)
+    client = TestClient(app)
+    kit_response = client.get(f"/api/projects/{project['id']}/interview-kit")
+    question_id = kit_response.json()["questions"][0]["id"]
+
+    update_response = client.post(
+        f"/api/projects/{project['id']}/interview-questions/{question_id}/status",
+        json={"mastered": True},
+    )
+
+    assert update_response.status_code == 200
+    payload = update_response.json()
+    assert payload["mastered_question_count"] == 1
+    assert payload["question_mastery_rate"] > 0
+    assert next(question for question in payload["questions"] if question["id"] == question_id)["mastered"] is True

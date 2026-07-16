@@ -312,6 +312,7 @@ class ReportService:
             f"- 课程完成：{breakdown.get('course_completion', 0)}%",
             f"- 动手练习：{breakdown.get('practice_completion', 0)}%",
             f"- 测验平均分：{breakdown.get('quiz_average', 0)}%",
+            f"- 高频问答：{breakdown.get('question_rehearsal', 0)}%",
             f"- 源码证据：{breakdown.get('source_evidence', 0)}%",
             "",
             "### 准备清单",

@@ -56,29 +56,31 @@ try:
 except requests.RequestException:
     readiness = None
 
-metrics = st.columns(4)
+metrics = st.columns(5)
 metrics[0].metric("高频问题", len(kit["questions"]))
-metrics[1].metric("源码证据", len(kit["core_references"]))
-metrics[2].metric("事实校验", "已通过" if kit["fact_checked"] else "未通过")
+metrics[1].metric("已掌握", f"{kit.get('mastered_question_count', 0)}/{len(kit['questions'])}")
+metrics[2].metric("源码证据", len(kit["core_references"]))
+metrics[3].metric("事实校验", "已通过" if kit["fact_checked"] else "未通过")
 if download_response and download_response.status_code == 200:
-    metrics[3].download_button(
+    metrics[4].download_button(
         "下载面试材料",
         data=download_response.text,
         file_name=f"{project_id}-interview-kit.md",
         mime="text/markdown",
     )
 else:
-    metrics[3].button("下载面试材料", disabled=True)
+    metrics[4].button("下载面试材料", disabled=True)
 
 if readiness:
     st.subheader("面试准备度")
-    readiness_cols = st.columns(5)
+    readiness_cols = st.columns(6)
     readiness_cols[0].metric("准备度", f"{readiness['readiness_score']}%")
     readiness_cols[1].metric("状态", _readiness_level_label(readiness["readiness_level"]))
     breakdown = readiness["score_breakdown"]
     readiness_cols[2].metric("课程", f"{breakdown['course_completion']}%")
     readiness_cols[3].metric("练习", f"{breakdown['practice_completion']}%")
     readiness_cols[4].metric("测验", f"{breakdown['quiz_average']}%")
+    readiness_cols[5].metric("问答", f"{breakdown.get('question_rehearsal', 0)}%")
     st.progress(readiness["readiness_score"] / 100)
 
     if readiness["recommended_actions"]:
@@ -132,9 +134,20 @@ st.subheader("高频问答")
 for question in kit["questions"]:
     with st.container(border=True):
         st.caption(question["category"])
-        st.markdown(f"**{question['question']}**")
+        title_prefix = "[已掌握] " if question.get("mastered") else ""
+        st.markdown(f"**{title_prefix}{question['question']}**")
         for point in question["answer_points"]:
             st.write(f"- {point}")
+        next_mastered = not question.get("mastered", False)
+        action_label = "取消掌握" if question.get("mastered") else "标记掌握"
+        if st.button(action_label, key=f"interview-question-status-{question['id']}"):
+            status_response = requests.post(
+                f"{API_URL}/api/projects/{project_id}/interview-questions/{question['id']}/status",
+                json={"mastered": next_mastered},
+                timeout=30,
+            )
+            status_response.raise_for_status()
+            st.rerun()
         references = question.get("references", [])
         if references:
             st.write("源码证据")

@@ -16,11 +16,13 @@ class InterviewReadinessService:
             100,
             round(len(interview_kit.get("core_references", [])) / 6 * 100),
         )
+        question_rehearsal_score = interview_kit.get("question_mastery_rate", 0)
         review_penalty_score = max(0, 100 - progress.get("needs_review_lessons", 0) * 20)
         score = round(
-            progress.get("completion_rate", 0) * 0.30
-            + practice_progress.get("completion_rate", 0) * 0.25
-            + quiz_average * 0.25
+            progress.get("completion_rate", 0) * 0.25
+            + practice_progress.get("completion_rate", 0) * 0.20
+            + quiz_average * 0.20
+            + question_rehearsal_score * 0.15
             + evidence_score * 0.10
             + review_penalty_score * 0.10
         )
@@ -33,6 +35,7 @@ class InterviewReadinessService:
                 "course_completion": progress.get("completion_rate", 0),
                 "practice_completion": practice_progress.get("completion_rate", 0),
                 "quiz_average": quiz_average,
+                "question_rehearsal": question_rehearsal_score,
                 "source_evidence": evidence_score,
                 "review_risk": review_penalty_score,
             },
@@ -95,6 +98,14 @@ class InterviewReadinessService:
                 len(interview_kit.get("core_references", [])) >= 3,
                 f"当前可引用源码证据 {len(interview_kit.get('core_references', []))} 条。",
                 "准备至少 6 条能讲清路径、模型或 Schema 的源码证据。",
+            ),
+            self._item(
+                "question_rehearsal",
+                "高频问答演练",
+                interview_kit.get("question_mastery_rate", 0) >= 80,
+                interview_kit.get("question_mastery_rate", 0) > 0,
+                f"当前高频问答掌握率 {interview_kit.get('question_mastery_rate', 0)}%。",
+                "逐题口头演练高频问答，并标记已掌握的问题。",
             ),
             self._item(
                 "review_risk",

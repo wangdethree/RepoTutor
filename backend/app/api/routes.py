@@ -120,6 +120,7 @@ def get_capabilities() -> dict:
             "interview_prep": True,
             "interview_markdown_export": True,
             "interview_readiness": True,
+            "interview_question_records": True,
             "remedial_lessons": True,
             "knowledge_cards": True,
             "practice_tasks": True,
@@ -486,7 +487,10 @@ def get_interview_kit(project_id: str) -> dict:
         raise HTTPException(status_code=404, detail="请先分析项目")
     profile = repository.get_profile(project_id) or {}
     progress = repository.get_learning_progress(project_id)
-    return interview_agent.generate(from_dict(analysis_payload), profile, progress)
+    return _interview_kit_with_records(
+        project_id,
+        interview_agent.generate(from_dict(analysis_payload), profile, progress),
+    )
 
 
 @router.get("/projects/{project_id}/interview-kit.md")
@@ -514,13 +518,33 @@ def get_interview_readiness(project_id: str) -> dict:
     if not progress["plan_id"]:
         raise HTTPException(status_code=404, detail="请先生成学习路线")
     profile = repository.get_profile(project_id) or {}
-    interview_kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
+    interview_kit = _interview_kit_with_records(
+        project_id,
+        interview_agent.generate(from_dict(analysis_payload), profile, progress),
+    )
     return interview_readiness_service.build(
         progress=progress,
         practice_progress=_build_project_practice_progress(project_id),
         quiz_results=repository.list_quiz_results_for_project(project_id),
         interview_kit=interview_kit,
     )
+
+
+@router.post("/projects/{project_id}/interview-questions/{question_id}/status")
+def update_interview_question_status(project_id: str, question_id: str, payload: dict) -> dict:
+    project = repository.get_project(project_id)
+    analysis_payload = repository.get_analysis(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not analysis_payload:
+        raise HTTPException(status_code=404, detail="请先分析项目")
+    profile = repository.get_profile(project_id) or {}
+    progress = repository.get_learning_progress(project_id)
+    interview_kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
+    if not any(question["id"] == question_id for question in interview_kit.get("questions", [])):
+        raise HTTPException(status_code=404, detail="面试题不存在")
+    repository.upsert_interview_question_record(project_id, question_id, bool(payload.get("mastered")))
+    return _interview_kit_with_records(project_id, interview_kit)
 
 
 @router.get("/projects/{project_id}/reports/learning")
@@ -762,13 +786,18 @@ def _build_interview_report(project_id: str) -> str:
         raise HTTPException(status_code=404, detail="请先分析项目")
     profile = repository.get_profile(project_id) or {}
     progress = repository.get_learning_progress(project_id)
-    kit = interview_agent.generate(from_dict(analysis_payload), profile, progress)
-    readiness = interview_readiness_service.build(
-        progress=progress,
-        practice_progress=_build_project_practice_progress(project_id),
-        quiz_results=repository.list_quiz_results_for_project(project_id),
-        interview_kit=kit,
+    kit = _interview_kit_with_records(
+        project_id,
+        interview_agent.generate(from_dict(analysis_payload), profile, progress),
     )
+    readiness = None
+    if progress["plan_id"]:
+        readiness = interview_readiness_service.build(
+            progress=progress,
+            practice_progress=_build_project_practice_progress(project_id),
+            quiz_results=repository.list_quiz_results_for_project(project_id),
+            interview_kit=kit,
+        )
     return report_service.build_interview_report(project=project, kit=kit, readiness=readiness)
 
 
@@ -815,6 +844,25 @@ def _practice_tasks_with_records(lesson_id: str, tasks_payload: dict) -> dict:
     tasks_payload["completed_task_count"] = completed_count
     tasks_payload["completion_rate"] = round(completed_count / tasks_payload["task_count"] * 100) if tasks_payload["task_count"] else 0
     return tasks_payload
+
+
+def _interview_kit_with_records(project_id: str, kit: dict) -> dict:
+    records = {
+        record["question_id"]: record
+        for record in repository.list_interview_question_records(project_id)
+    }
+    mastered_count = 0
+    for question in kit.get("questions", []):
+        record = records.get(question["id"], {})
+        question["mastered"] = bool(record.get("mastered", False))
+        question["mastered_at"] = record.get("mastered_at", "")
+        question["updated_at"] = record.get("updated_at", "")
+        if question["mastered"]:
+            mastered_count += 1
+    question_count = len(kit.get("questions", []))
+    kit["mastered_question_count"] = mastered_count
+    kit["question_mastery_rate"] = round(mastered_count / question_count * 100) if question_count else 0
+    return kit
 
 
 def _build_project_practice_progress(project_id: str) -> dict:
